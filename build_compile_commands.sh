@@ -15,7 +15,11 @@ done
 bear -- make
 cd pedi2/test || exit
 bear --append --output "$JSON" -- make
-cd - || exit
+cd ../app/dynmorph || exit
+bear --append --output "$JSON" -- make
+cd ../joystick || exit
+bear --append --output "$JSON" -- make
+cd ../.. || exit
 compdb -p . list | sponge compile_commands.json
 
 # Local Variables:
