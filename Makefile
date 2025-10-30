@@ -71,17 +71,17 @@ pedi2: zeda zm dzco zeo roki roki-gl
 	$(MAKE) -C pedi2 example
 
 clean:
-	$(MAKE) -C zeda clean
-	$(MAKE) -C zm clean
-	$(MAKE) -C zeo clean
-	$(MAKE) -C roki clean
-	$(MAKE) -C dzco clean
-	$(MAKE) -C liw clean
-	$(MAKE) -C zx11 clean
+	$(MAKE) -C zeda clean || true
+	$(MAKE) -C zm clean || true
+	$(MAKE) -C zeo clean || true
+	$(MAKE) -C roki clean || true
+	$(MAKE) -C dzco clean || true
+	$(MAKE) -C liw clean || true
+	$(MAKE) -C zx11 clean || true
 	$(MAKE) -C neuz clean || true
-	$(MAKE) -C roki-fd clean
-	$(MAKE) -C roki-gl clean
-	$(MAKE) -C pedi2 clean
-	cd pedi2/test && make clean
+	$(MAKE) -C roki-fd clean || true
+	$(MAKE) -C roki-gl clean || true
+	$(MAKE) -C pedi2 clean || true
+	cd pedi2/test && make clean || true
 	rm -f ./*/include/*/*_export.h
 	rm -rf .cache compile_commands.json
