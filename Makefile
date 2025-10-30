@@ -83,4 +83,5 @@ clean:
 	$(MAKE) -C roki-gl clean
 	$(MAKE) -C pedi2 clean
 	cd pedi2/test && make clean
+	rm -f ./*/include/*/*_export.h
 	rm -rf .cache compile_commands.json
