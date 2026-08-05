@@ -13,9 +13,13 @@
 
 set -euo pipefail
 
+cd "$(dirname "$0")"
+
 # === CONFIGURATION ===
 ORG="mi-lib"
-LIBS=(zeda zm neuz dzco zeo roki liw zx11 roki-gl roki-fd)
+# shellcheck source=liblist
+. ./liblist
+read -ra LIBS <<< "$UPSTREAM_LIBS"
 DRY_RUN=false
 
 # === ARGUMENT PARSING ===
