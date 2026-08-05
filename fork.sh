@@ -45,7 +45,7 @@ check_gh_installed() {
 check_gh_login() {
   echo "🔍 Checking GitHub login status..."
   if gh auth status >/dev/null 2>&1; then
-    USERNAME=$(gh auth status 2>/dev/null | grep -oE 'Logged in to github.com account [^ ]+' | awk '{print $6}')
+    USERNAME=$(gh api user -q .login)
     echo "✅ Logged in to GitHub as: $USERNAME"
   else
     echo "⚠️  Not logged in to GitHub."
@@ -53,7 +53,7 @@ check_gh_login() {
     gh auth login --hostname github.com --git-protocol ssh
 
     if gh auth status >/dev/null 2>&1; then
-      USERNAME=$(gh auth status 2>/dev/null | grep -oE 'Logged in to github.com account [^ ]+' | awk '{print $6}')
+      USERNAME=$(gh api user -q .login)
       echo "✅ Successfully logged in as: $USERNAME"
     else
       echo "❌ Login failed. Please try manually:"
