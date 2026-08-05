@@ -1,6 +1,6 @@
-.PHONY: all clean zeda zm zeo roki dzco liw zx11 neuz roki-fd roki-gl pedi2
+.PHONY: all clean zeda zm zeo roki dzco liw zx11 neuz roki-fd roki-gl pedi2 pedi2-test pedi2-app
 
-all: zeda zm zeo roki dzco liw zx11 neuz roki-fd roki-gl pedi2
+all: zeda zm zeo roki dzco liw zx11 neuz roki-fd roki-gl pedi2 pedi2-test pedi2-app
 
 zeda:
 	$(MAKE) -C zeda
@@ -70,6 +70,14 @@ pedi2: zeda zm dzco zeo roki roki-gl
 #	$(MAKE) -C pedi2 test
 	$(MAKE) -C pedi2 example
 
+pedi2-test: pedi2
+	cd pedi2/test && if [ ! -d gtest ]; then unzip archive/gtest-1.7.0.zip && mv gtest-1.7.0 gtest; fi
+	$(MAKE) -C pedi2/test
+
+pedi2-app: pedi2
+	$(MAKE) -C pedi2/app/dynmorph
+	$(MAKE) -C pedi2/app/joystick
+
 clean:
 	$(MAKE) -C zeda clean || true
 	$(MAKE) -C zm clean || true
@@ -83,5 +91,7 @@ clean:
 	$(MAKE) -C roki-gl clean || true
 	$(MAKE) -C pedi2 clean || true
 	cd pedi2/test && make clean || true
+	$(MAKE) -C pedi2/app/dynmorph clean || true
+	$(MAKE) -C pedi2/app/joystick clean || true
 	rm -f ./*/include/*/*_export.h
 	rm -rf .cache compile_commands.json
