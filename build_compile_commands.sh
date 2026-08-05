@@ -2,45 +2,32 @@
 
 set -e
 
-. "liblist"
+cd "$(dirname "$0")"
 JSON="$(pwd)/compile_commands.json"
-make clean
-for lib in $LIBS; do
-  echo "==> Processing $lib"
-  cd "$lib" || continue
-  echo "Checking out branch 'compat/bear'..."
-  # git fetch origin compat/bear >/dev/null 2>&1
-  git checkout compat/bear 2>/dev/null || {
-    echo "❌  Failed to checkout 'compat/bear' in $lib"
-  }
-  cd ..
-done
 
+make clean
 bear -- make
-cd pedi2/test || exit
+
+# The top-level Makefile does not build pedi2's test suite and app
+# subdirectories; capture them separately. The app directories are not
+# covered by `make clean`, so force recompilation with -B lest bear
+# miss their sources when they are up to date.
+cd pedi2/test
 if [ ! -d gtest ]; then
   unzip archive/gtest-1.7.0.zip
   mv gtest-1.7.0 gtest
 fi
 bear --append --output "$JSON" -- make
-cd ../app/dynmorph || exit
-bear --append --output "$JSON" -- make
-cd ../joystick || exit
-bear --append --output "$JSON" -- make
-cd ../.. || exit
-if ! command -v sponge &> /dev/null; then
-  sudo apt install moreutils
-fi
-compdb -p . list | sponge compile_commands.json
+cd ../app/dynmorph
+bear --append --output "$JSON" -- make -B
+cd ../joystick
+bear --append --output "$JSON" -- make -B
+cd ../../..
 
-for lib in $LIBS; do
-  cd "$lib" || continue
-  git checkout main 2>/dev/null || {
-    echo "❌  Failed to checkout 'main' in $lib"
-  }
-  cd ..
-done
+# Add header entries for clangd.
+compdb -p . list > "$JSON.tmp"
+mv "$JSON.tmp" "$JSON"
 
 # Local Variables:
-# jinx-local-words: "compat env json liblist usr"
+# jinx-local-words: "compdb env gtest json pedi2"
 # End:
