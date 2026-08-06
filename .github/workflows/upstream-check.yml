@@ -27,7 +27,7 @@ jobs:
       any: ${{ steps.compare.outputs.any }}
       updates: ${{ steps.compare.outputs.updates }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Compare forks with upstream
         id: compare
         timeout-minutes: 3
@@ -62,7 +62,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install build dependencies
         timeout-minutes: 10
         run: |
@@ -142,4 +142,27 @@ jobs:
               --title "Upstream updates available" --body-file body.md
           else
             gh issue edit "$n" --repo "$GITHUB_REPOSITORY" --body-file body.md
+          fi
+
+  # The tracking issue asserts "forks are behind upstream"; once detect
+  # observes full sync, any open tracking issue is stale by definition.
+  close-stale:
+    needs: detect
+    if: needs.detect.outputs.any == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Close tracking issue if forks are in sync
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          n=$(gh issue list --repo "$GITHUB_REPOSITORY" --label upstream-check \
+                --state open --json number --jq '.[0].number // empty')
+          if [ -n "$n" ]; then
+            gh issue close "$n" --repo "$GITHUB_REPOSITORY" \
+              --comment "All forks are in sync with upstream ([workflow run]($RUN_URL))."
           fi
