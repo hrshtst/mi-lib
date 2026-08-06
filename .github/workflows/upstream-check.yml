@@ -1,0 +1,145 @@
+name: upstream-check
+
+on:
+  schedule:
+    # Weekly; UTC (06:17 JST Saturday). Off-the-hour minute to dodge
+    # GitHub's busy-time scheduling delays.
+    - cron: '17 21 * * 5'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer run supersedes an older one; never let two runs overlap.
+concurrency:
+  group: upstream-check
+  cancel-in-progress: true
+
+env:
+  UPSTREAM_ORG: mi-lib
+
+jobs:
+  # Cheap API-only comparison of every fork against its upstream.
+  detect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      any: ${{ steps.compare.outputs.any }}
+      updates: ${{ steps.compare.outputs.updates }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare forks with upstream
+        id: compare
+        timeout-minutes: 3
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          . ./liblist
+          rows=""
+          for lib in $UPSTREAM_LIBS; do
+            row=$(gh api "repos/$OWNER/$lib/compare/main...$UPSTREAM_ORG:main" \
+                    --jq "{lib: \"$lib\", status: .status, behind: .ahead_by}")
+            rows="$rows$row"$'\n'
+          done
+          updates=$(printf '%s' "$rows" | jq -sc '[.[] | select(.behind > 0 or .status == "diverged")]')
+          any=$(printf '%s' "$updates" | jq 'length > 0')
+          echo "updates=$updates" >> "$GITHUB_OUTPUT"
+          echo "any=$any" >> "$GITHUB_OUTPUT"
+          {
+            echo "| library | status | commits behind |"
+            echo "|---|---|---|"
+            printf '%s' "$rows" | jq -r '"| \(.lib) | \(.status) | \(.behind) |"'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Build the whole suite with the behind libraries at their upstream
+  # state (the forks themselves are not touched), then run pedi2's
+  # test suite. Only runs when detect found updates.
+  build:
+    needs: detect
+    if: needs.detect.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        timeout-minutes: 10
+        run: |
+          sudo apt-get update
+          # MagickWand is omitted: the Makefile builds zx11/roki-gl
+          # with CONFIG_USE_MAGICKWAND=n. Toolchain packages (gcc,
+          # make, pkg-config, unzip) are preinstalled on the runner.
+          sudo apt-get install -y --no-install-recommends \
+            libxml2-dev liblzf-dev xorg-dev libxft-dev libfreetype-dev \
+            libtiff-dev libjpeg-dev freeglut3-dev libglew-dev libglfw3-dev
+      - name: Clone libraries at upstream state
+        timeout-minutes: 5
+        env:
+          OWNER: ${{ github.repository_owner }}
+          UPDATES: ${{ needs.detect.outputs.updates }}
+        run: |
+          set -euo pipefail
+          . ./liblist
+          for lib in $LIBS; do
+            git clone -q --depth 1 "https://github.com/$OWNER/$lib.git"
+          done
+          for lib in $(printf '%s' "$UPDATES" | jq -r '.[].lib'); do
+            git -C "$lib" fetch -q --depth 1 "https://github.com/$UPSTREAM_ORG/$lib.git" main
+            git -C "$lib" checkout -q FETCH_HEAD
+          done
+      - name: Set up install prefix
+        run: |
+          mkdir -p "$HOME/usr/bin" "$HOME/usr/lib" "$HOME/usr/include"
+          echo "$HOME/usr/bin" >> "$GITHUB_PATH"
+          echo "LD_LIBRARY_PATH=$HOME/usr/lib" >> "$GITHUB_ENV"
+      - name: Build all libraries
+        timeout-minutes: 40
+        run: make SKIP_CHECKS=1
+      - name: Run pedi2 test suite
+        timeout-minutes: 10
+        run: make -C pedi2/test test
+
+  # Keep a single tracking issue up to date with the result.
+  report:
+    needs: [detect, build]
+    if: always() && needs.detect.result == 'success' && needs.detect.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Create or update tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OWNER: ${{ github.repository_owner }}
+          UPDATES: ${{ needs.detect.outputs.updates }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          case "$BUILD_RESULT" in
+            success) verdict="✅ Build and pedi2 tests passed with upstream changes — safe to pull." ;;
+            failure) verdict="❌ Build or pedi2 tests failed with upstream changes — pedi2 (or a library) needs fixing before pulling." ;;
+            *)       verdict="⚠️ Build result: $BUILD_RESULT" ;;
+          esac
+          {
+            echo "Upstream commits not yet in the forks ([workflow run]($RUN_URL)):"
+            echo
+            echo "| library | status | commits behind | changes |"
+            echo "|---|---|---|---|"
+            printf '%s' "$UPDATES" | jq -r --arg o "$OWNER" --arg u "$UPSTREAM_ORG" \
+              '.[] | "| \(.lib) | \(.status) | \(.behind) | [compare](https://github.com/\($o)/\(.lib)/compare/main...\($u):main) |"'
+            echo
+            echo "$verdict"
+          } > body.md
+          gh label create upstream-check --force \
+            --description "Automated upstream update tracking" --color 1D76DB
+          n=$(gh issue list --repo "$GITHUB_REPOSITORY" --label upstream-check \
+                --state open --json number --jq '.[0].number // empty')
+          if [ -z "$n" ]; then
+            gh issue create --repo "$GITHUB_REPOSITORY" --label upstream-check \
+              --title "Upstream updates available" --body-file body.md
+          else
+            gh issue edit "$n" --repo "$GITHUB_REPOSITORY" --body-file body.md
+          fi
