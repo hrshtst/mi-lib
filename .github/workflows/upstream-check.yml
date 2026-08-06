@@ -133,7 +133,7 @@ jobs:
             echo
             echo "$verdict"
           } > body.md
-          gh label create upstream-check --force \
+          gh label create upstream-check --repo "$GITHUB_REPOSITORY" --force \
             --description "Automated upstream update tracking" --color 1D76DB
           n=$(gh issue list --repo "$GITHUB_REPOSITORY" --label upstream-check \
                 --state open --json number --jq '.[0].number // empty')
