@@ -79,7 +79,7 @@ ifndef SKIP_CHECKS
 	$(MAKE) -C roki-fd example
 endif
 
-roki-gl: zeda zm zeo roki zx11
+roki-gl: zeda zm zeo roki zx11 liw
 	cd roki-gl && sed -e "s/^CONFIG_USE_MAGICKWAND=y$$/CONFIG_USE_MAGICKWAND=n/" config.org > config
 	$(MAKE) -C roki-gl
 	$(MAKE) -C roki-gl install
