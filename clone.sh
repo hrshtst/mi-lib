@@ -7,7 +7,14 @@ cd "$(dirname "$0")"
 # List of libraries
 # shellcheck source=liblist
 . ./liblist
-OWNER="hrshtst"
+# Owner of the forked repositories: taken from the environment when
+# set, otherwise derived from the origin URL of this repository.
+OWNER="${OWNER:-$(git remote get-url origin | sed -E 's#.*[:/]([^/]+)/[^/]+$#\1#')}"
+if [ -z "$OWNER" ]; then
+  echo "❌  Cannot determine the fork owner; set the OWNER environment variable."
+  exit 1
+fi
+echo "Fork owner: $OWNER"
 UPSTREAM_OWNER="mi-lib"
 
 # Prerequisite packages are installed separately by install_prereq.sh.
@@ -39,5 +46,5 @@ for lib in $LIBS; do
 done
 
 # Local Variables:
-# jinx-local-words: "env hrshtst liblist usr"
+# jinx-local-words: "env liblist"
 # End:
