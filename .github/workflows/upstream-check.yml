@@ -132,6 +132,8 @@ jobs:
               '.[] | "| \(.lib) | \(.status) | \(.behind) | [compare](https://github.com/\($o)/\(.lib)/compare/main...\($u):main) |"'
             echo
             echo "$verdict"
+            echo
+            echo "cc @$OWNER"
           } > body.md
           gh label create upstream-check --repo "$GITHUB_REPOSITORY" --force \
             --description "Automated upstream update tracking" --color 1D76DB
