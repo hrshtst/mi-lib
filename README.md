@@ -48,9 +48,11 @@ After syncing, rebuild the workspace and the compilation database
 ## Recreating compile_commands.json
 
 `compile_commands.json` at the workspace root lets clangd navigate
-across all libraries and pedi2. `.clangd` redirects header lookup to
-the in-tree `include/` directories, so cross-library jumps land in
-the sources rather than the installed copies under `~/usr/include`.
+across all libraries and pedi2. `.clangd`, generated locally by the
+script below since clangd requires absolute paths, redirects header
+lookup to the in-tree `include/` directories, so cross-library jumps
+land in the sources rather than the installed copies under
+`~/usr/include`.
 
 To recreate the database after syncing or larger changes:
 
