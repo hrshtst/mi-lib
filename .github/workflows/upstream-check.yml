@@ -72,7 +72,8 @@ jobs:
           # make, pkg-config, unzip) are preinstalled on the runner.
           sudo apt-get install -y --no-install-recommends \
             libxml2-dev liblzf-dev xorg-dev libxft-dev libfreetype-dev \
-            libtiff-dev libjpeg-dev freeglut3-dev libglew-dev libglfw3-dev
+            libtiff-dev libjpeg-dev libwebp-dev freeglut3-dev libglew-dev \
+            libglfw3-dev
       - name: Clone libraries at upstream state
         timeout-minutes: 5
         env:
