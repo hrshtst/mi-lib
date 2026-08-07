@@ -65,7 +65,10 @@ This cleans everything, rebuilds the whole suite under
 commands, adds header entries with
 [compdb](https://github.com/Sarcasm/compdb), and finally writes
 `versions.lock` with each library's commit, branch, and a `dirty`
-marker for uncommitted changes. Requirements: `bear` and `compdb` on
+marker for uncommitted changes. To return the workspace to that
+recorded state later, `./thaw_versions.sh` checks out each library at
+its recorded commit (repositories with local changes are skipped;
+`--dry-run` previews the changes). Requirements: `bear` and `compdb` on
 the PATH, and `~/usr/bin` in PATH with `~/usr/lib` in
 `LD_LIBRARY_PATH` for the installed tools and tests ([direnv](https://direnv.net/)
 is handy for setting these per directory).
