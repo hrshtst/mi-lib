@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# Thaw the library versions recorded in versions.lock: check out each
-# library at its recorded commit. Repositories with local changes to
-# tracked files are skipped.
+# Thaw the library versions recorded in the version lock file: check
+# out each library at its recorded commit. Repositories with local
+# changes to tracked files are skipped.
 #
 # Usage:
 #   ./thaw_versions.sh            # Check out the recorded versions
@@ -12,7 +12,10 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-LOCK=versions.lock
+# shellcheck source=load_config.sh
+. ./load_config.sh
+
+LOCK="$VERSIONS_LOCK"
 if [ ! -f "$LOCK" ]; then
   echo "❌ $LOCK not found; run ./build_compile_commands.sh first"
   exit 1
