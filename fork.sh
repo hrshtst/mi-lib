@@ -1,25 +1,24 @@
 #!/usr/bin/env bash
 #
-# check-gh-login-and-fork.sh
+# fork.sh
 #
-# Checks if you're logged in to GitHub via gh CLI (SSH).
-# If not, attempts login, then forks a list of repositories
-# from the 'mi-lib' organization into your personal account.
+# Checks if you're logged in to GitHub via gh CLI. If not, attempts
+# login, then forks the configured upstream libraries into your
+# personal account. In forkless mode (OWNER matches UPSTREAM_OWNER)
+# there is nothing to fork and the script exits immediately.
 #
 # Usage:
-#   ./check-gh-login-and-fork.sh            # Normal execution
-#   ./check-gh-login-and-fork.sh --dry-run  # Show what would be done, but don't fork
+#   ./fork.sh            # Normal execution
+#   ./fork.sh --dry-run  # Show what would be done, but don't fork
 #
 
 set -euo pipefail
 
 cd "$(dirname "$0")"
 
-# === CONFIGURATION ===
-ORG="mi-lib"
-# shellcheck source=liblist
-. ./liblist
-read -ra LIBS <<< "$UPSTREAM_LIBS"
+# shellcheck source=load_config.sh
+. ./load_config.sh
+read -ra FORK_LIBS <<< "$UPSTREAM_LIBS"
 DRY_RUN=false
 
 # === ARGUMENT PARSING ===
@@ -34,6 +33,11 @@ if [[ $# -gt 0 ]]; then
       exit 1
       ;;
   esac
+fi
+
+if milib_forkless; then
+  echo "💡 Forkless mode (OWNER=$OWNER): the original repositories are tracked directly; nothing to fork."
+  exit 0
 fi
 
 # === FUNCTIONS ===
@@ -54,31 +58,31 @@ check_gh_login() {
   else
     echo "⚠️  Not logged in to GitHub."
     echo "Attempting to log in..."
-    gh auth login --hostname github.com --git-protocol ssh
+    gh auth login --hostname github.com --git-protocol "$GIT_PROTOCOL"
 
     if gh auth status >/dev/null 2>&1; then
       USERNAME=$(gh api user -q .login)
       echo "✅ Successfully logged in as: $USERNAME"
     else
       echo "❌ Login failed. Please try manually:"
-      echo "   gh auth login --hostname github.com --git-protocol ssh"
+      echo "   gh auth login --hostname github.com --git-protocol $GIT_PROTOCOL"
       exit 1
     fi
   fi
 }
 
 fork_repos() {
-  echo "🔁 Starting to fork repositories from '$ORG'..."
+  echo "🔁 Starting to fork repositories from '$UPSTREAM_OWNER'..."
   if $DRY_RUN; then
     echo "💡 Dry-run mode enabled — no actual forks will be created."
   fi
 
-  for repo in "${LIBS[@]}"; do
-    echo "➡️  Target: ${ORG}/${repo}"
+  for repo in "${FORK_LIBS[@]}"; do
+    echo "➡️  Target: ${UPSTREAM_OWNER}/${repo}"
     if $DRY_RUN; then
-      echo "   (dry-run) Would run: gh repo fork ${ORG}/${repo} --clone=false"
+      echo "   (dry-run) Would run: gh repo fork ${UPSTREAM_OWNER}/${repo} --clone=false"
     else
-      if gh repo fork "${ORG}/${repo}" --clone=false >/dev/null 2>&1; then
+      if gh repo fork "${UPSTREAM_OWNER}/${repo}" --clone=false >/dev/null 2>&1; then
         echo "   ✅ Forked ${repo}"
       else
         echo "   ⚠️  Skipped or failed to fork ${repo} (possibly already forked)"
@@ -95,5 +99,5 @@ check_gh_login
 fork_repos
 
 # Local Variables:
-# jinx-local-words: "auth env gh github hostname repo usr"
+# jinx-local-words: "auth config env gh github hostname repo"
 # End:

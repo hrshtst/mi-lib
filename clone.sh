@@ -1,50 +1,60 @@
 #!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 cd "$(dirname "$0")"
 
-# List of libraries
-# shellcheck source=liblist
-. ./liblist
-# Owner of the forked repositories: taken from the environment when
-# set, otherwise derived from the origin URL of this repository.
-OWNER="${OWNER:-$(git remote get-url origin | sed -E 's#.*[:/]([^/]+)/[^/]+$#\1#')}"
-if [ -z "$OWNER" ]; then
-  echo "❌  Cannot determine the fork owner; set the OWNER environment variable."
-  exit 1
-fi
-echo "Fork owner: $OWNER"
-UPSTREAM_OWNER="mi-lib"
+# shellcheck source=load_config.sh
+. ./load_config.sh
+
+echo "Fork owner: $OWNER (protocol: $GIT_PROTOCOL)"
 
 # Prerequisite packages are installed separately by install_prereq.sh.
 
-# Add the upstream remote to libraries forked from the mi-lib
-# organization, unless it is already configured.
+# Add the upstream remote to libraries forked from the upstream
+# organization, unless it is already configured. In forkless mode the
+# origin already points at the upstream organization.
 add_upstream() {
+    if milib_forkless; then
+        return 0
+    fi
     case " $UPSTREAM_LIBS " in
         *" $1 "*)
             if ! git -C "$1" remote get-url upstream >/dev/null 2>&1; then
                 echo "   Adding upstream remote ${UPSTREAM_OWNER}/$1"
-                git -C "$1" remote add upstream "git@github.com:${UPSTREAM_OWNER}/$1.git"
+                git -C "$1" remote add upstream "$(milib_repo_url "$UPSTREAM_OWNER" "$1")"
             fi
             ;;
     esac
 }
 
-for lib in $LIBS; do
-    echo "==> Cloning $lib"
-    if [ -d "$lib" ]; then
-        echo "⚠️  Directory '$lib' already exists, skipping clone."
+FAILED=""
+clone_one() {  # $1 = owner, $2 = repository
+    echo "==> Cloning $2"
+    if [ -d "$2" ]; then
+        echo "⚠️  Directory '$2' already exists, skipping clone."
     else
-        git clone "git@github.com:${OWNER}/${lib}.git" "$lib" || {
-            echo "❌  Failed to clone ${OWNER}/${lib}"
-            continue
+        git clone "$(milib_repo_url "$1" "$2")" "$2" || {
+            echo "❌  Failed to clone $1/$2"
+            FAILED="$FAILED $2"
+            return 0
         }
     fi
-    add_upstream "$lib"
+    add_upstream "$2"
+}
+
+for lib in $UPSTREAM_LIBS; do
+    clone_one "$OWNER" "$lib"
 done
+if [ -n "$CUSTOM_LIB" ]; then
+    clone_one "$CUSTOM_LIB_OWNER" "$CUSTOM_LIB"
+fi
+
+if [ -n "$FAILED" ]; then
+    echo "❌ Failed to clone:$FAILED"
+    exit 1
+fi
 
 # Local Variables:
-# jinx-local-words: "env liblist"
+# jinx-local-words: "config env"
 # End:
