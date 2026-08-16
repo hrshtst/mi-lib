@@ -1,76 +1,115 @@
-# mi-lib workspace
+# mi-lib metapackage
 
-A meta repository for developing [pedi2](https://github.com/hrshtst/pedi2)
-against forks of the [mi-lib](https://github.com/mi-lib) libraries
-(zeda, zm, neuz, dzco, zeo, roki, liw, zx11, roki-gl, roki-fd).
-The library clones live in this directory but are ignored by git;
-`liblist` is the single manifest of their names, and `versions.lock`
-records the exact commits the workspace was last built from.
+A metapackage for the [mi-lib](https://github.com/mi-lib) libraries:
+it manages a configurable set of upstream libraries (originals or your
+forks) together with one custom library that depends on them, builds
+and installs everything in dependency order, pins and restores exact
+versions, generates a compilation database for clangd, and keeps up
+with upstream updates through CI.
 
-## Setup
+Everything is driven by a layered configuration: `config.default`
+(tracked) holds the documented defaults, an optional gitignored
+`config.local` overlays only the values you change, and environment
+variables override both. CI never reads `config.local`. The library
+clones live inside this directory but are ignored by git.
+
+## Pattern 1: system install with the default configuration
+
+Installs the ten upstream libraries and [pedi2](https://github.com/hrshtst/pedi2)
+to `~/usr`:
 
 ```console
-$ ./install_prereq.sh   # install required packages (uses sudo; --check to only verify)
+$ ./install_prereq.sh   # install required packages (sudo; --check to verify only)
 $ ./fork.sh             # fork the upstream libraries into your account (once)
-$ ./clone.sh            # clone the forks and pedi2, add upstream remotes
-$ make                  # build, install to ~/usr, and test everything
+$ ./clone.sh            # clone the libraries, add upstream remotes
+$ make                  # build, install, and test everything
 ```
 
-## Syncing with upstream
-
-The `upstream-check` GitHub Actions workflow runs weekly (and via
-manual dispatch). It compares every fork with its upstream and, when
-updates exist, builds the whole suite at the upstream state and runs
-pedi2's test suite on a runner. The result is tracked in a single
-issue labeled `upstream-check`, whose verdict says whether the
-updates are safe to pull; the issue is closed automatically once the
-forks are back in sync.
-
-To adopt upstream updates locally:
+The `upstream-check` GitHub Actions workflow runs weekly: it compares
+every fork with its upstream and, when updates exist, builds the
+whole suite at the upstream state and runs the custom library's test
+suite on a runner. The result is tracked in a single issue labeled
+`upstream-check` (closed automatically once the forks are in sync).
+To adopt updates locally:
 
 ```console
-$ ./sync_upstream.sh --dry-run   # preview how far each fork is behind
-$ ./sync_upstream.sh             # fast-forward each fork's main and push it
+$ ./sync_upstream.sh --dry-run   # preview how far each library is behind
+$ ./sync_upstream.sh             # fast-forward (and push the forks)
+$ ./build_compile_commands.sh    # rebuild and re-freeze versions
 ```
 
-The script only fast-forwards: a fork whose `main` carries local-only
-commits is skipped and reported for manual handling. It also works
-while another branch is checked out (the branch itself is left alone —
-rebase it onto `main` yourself afterwards).
+## Pattern 2: custom configuration
 
-If the tracking issue reports a failed build, fix pedi2 on a branch
-first, merge it, and sync afterwards; the next workflow run should
-then be green.
+Create `config.local` next to `config.default` and assign only what
+differs. Commonly customized:
 
-After syncing, rebuild the workspace and the compilation database
-(next section), and commit the updated `versions.lock`.
+- `UPSTREAM_LIBS` — the managed upstream libraries. The list must be
+  closed under the dependency graph in the Makefile.
+- `CUSTOM_LIB`, `CUSTOM_LIB_DEPS`, `CUSTOM_TEST_CMD` — your own
+  library instead of pedi2 ("" for none). Extra make targets for it
+  can be provided in `mk/<name>.mk`, appending to
+  `CUSTOM_EXTRA_TARGETS` and `CUSTOM_EXTRA_CLEAN` (see `mk/pedi2.mk`).
+- `OWNER`, `CUSTOM_LIB_OWNER`, `GIT_PROTOCOL` — where and how to
+  clone; empty values are derived from this repository's origin URL.
+  Setting `OWNER="$UPSTREAM_OWNER"` selects the forkless mode: the
+  original repositories are tracked directly, `fork.sh` does nothing,
+  and `sync_upstream.sh` fast-forwards from origin without pushing.
+- `VERSIONS_LOCK` — e.g. `versions.local.lock` (gitignored) to pin
+  versions locally instead of in the tracked `versions.lock`.
 
-## Recreating compile_commands.json
+## Pattern 3: project-local install with out-of-tree applications
 
-`compile_commands.json` at the workspace root lets clangd navigate
-across all libraries and pedi2. `.clangd`, generated locally by the
-script below since clangd requires absolute paths, redirects header
-lookup to the in-tree `include/` directories, so cross-library jumps
-land in the sources rather than the installed copies under
-`~/usr/include`.
+Install into a project directory and develop applications outside
+this repository:
 
-To recreate the database after syncing or larger changes:
-
-```console
-$ ./build_compile_commands.sh
+```text
+user_project/
+├─ .envrc                 <- generated by gen_envrc.sh
+├─ .local/                <- install prefix
+├─ application/
+│   └─ simulation1/       <- built via the installed <lib>-config
+├─ third_party/mi-lib/    <- this repository
+└─ compile_commands.json  <- includes the application sources
 ```
 
-This cleans everything, rebuilds the whole suite under
-[bear](https://github.com/rizsotto/Bear) to capture the compile
-commands, adds header entries with
-[compdb](https://github.com/Sarcasm/compdb), and finally writes
-`versions.lock` with each library's commit, branch, and a `dirty`
-marker for uncommitted changes. To return the workspace to that
-recorded state later, `./thaw_versions.sh` checks out each library at
-its recorded commit (repositories with local changes are skipped;
-`--dry-run` previews the changes). Requirements: `bear` and `compdb` on
-the PATH, and `~/usr/bin` in PATH with `~/usr/lib` in
-`LD_LIBRARY_PATH` for the installed tools and tests ([direnv](https://direnv.net/)
-is handy for setting these per directory).
+`config.local` for this layout:
 
-Restart clangd in your editor after regenerating the database.
+```sh
+UPSTREAM_LIBS="zeda zm"                                  # what you need
+CUSTOM_LIB=""
+PREFIX="/path/to/user_project/.local"
+APP_DIRS="/path/to/user_project/application/simulation1"
+COMPILE_DB="/path/to/user_project/compile_commands.json"
+VERSIONS_LOCK="versions.local.lock"
+```
+
+Then `./clone.sh && make && ./build_compile_commands.sh` builds and
+installs into `.local`, captures the application directories into the
+database at the project root, and generates `.clangd` beside it so
+clangd covers the application sources too. `./gen_envrc.sh` writes
+the `.envrc` (run `direnv allow` afterwards). Application makefiles
+compile via the installed `<lib>-config` scripts, which carry the
+prefix automatically.
+
+Rules of the road: always build through this repository's Makefile
+(it injects the configured `PREFIX` into the generated library
+makefiles; a build started inside a library directory would fall back
+to that library's own config), and a `PREFIX` change requires
+`make clean` first — a stamp file enforces this, since the generated
+`<lib>-config` tools bake the prefix in.
+
+## Version pinning and the compilation database
+
+`./freeze_versions.sh` records each library's commit, branch, and a
+`dirty` marker into the lock file (`--dry-run` diffs against it);
+`./thaw_versions.sh` checks the recorded commits out again, skipping
+repositories with local changes. `./build_compile_commands.sh` cleans,
+rebuilds everything under [bear](https://github.com/rizsotto/Bear),
+captures the application directories, adds header entries with
+[compdb](https://github.com/Sarcasm/compdb), and freezes the versions
+— so the lock always reflects the last successful build. Restart
+clangd in your editor after regenerating the database.
+
+Troubleshooting: the generated library makefiles carry no header
+dependencies, so after switching branches in a library, run a clean
+rebuild before trusting build or test results.
