@@ -1,121 +1,158 @@
-.PHONY: all clean zeda zm zeo roki dzco liw zx11 neuz roki-fd roki-gl pedi2 pedi2-test pedi2-app
+# Configuration is read from config.default (+ optional config.local)
+# through load_config.sh; see config.default for the variables.
+UPSTREAM_LIBS   := $(shell ./load_config.sh --get UPSTREAM_LIBS)
+CUSTOM_LIB      := $(shell ./load_config.sh --get CUSTOM_LIB)
+CUSTOM_LIB_DEPS := $(shell ./load_config.sh --get CUSTOM_LIB_DEPS)
+PREFIX          := $(shell ./load_config.sh --get PREFIX)
 
-all: zeda zm zeo roki dzco liw zx11 neuz roki-fd roki-gl pedi2 pedi2-test pedi2-app
+ALL_LIBS := $(UPSTREAM_LIBS) $(CUSTOM_LIB)
 
-# Run as `make SKIP_CHECKS=1` to build and install only, without running
-# each library's test and example targets (used by CI, where the tests
-# of X11/OpenGL libraries cannot run headlessly).
+# Builds need $(PREFIX)/bin on PATH (<lib>-config, zeda-makefile-gen,
+# zeda-chkdep) and $(PREFIX)/lib on LD_LIBRARY_PATH (tests), even
+# without direnv.
+export PATH := $(PREFIX)/bin:$(PATH)
+ifeq ($(LD_LIBRARY_PATH),)
+export LD_LIBRARY_PATH := $(PREFIX)/lib
+else
+export LD_LIBRARY_PATH := $(PREFIX)/lib:$(LD_LIBRARY_PATH)
+endif
+
+# Sub-make driver: the command-line PREFIX rides MAKEFLAGS down into
+# the generated library makefiles and overrides each library's own
+# config file.
+LIBMK = $(MAKE) PREFIX=$(PREFIX) -C
+
+# The <lib>-config tools bake PREFIX in at generation time and are not
+# regenerated while present, so building over the artifacts of a
+# different prefix requires a clean first.
+PREFIX_STAMP := .milib-prefix
+LAST_PREFIX := $(shell cat $(PREFIX_STAMP) 2>/dev/null)
+ifeq ($(filter clean,$(MAKECMDGOALS)),)
+ifneq ($(LAST_PREFIX),)
+ifneq ($(LAST_PREFIX),$(PREFIX))
+$(error PREFIX changed ($(LAST_PREFIX) -> $(PREFIX)); run 'make clean' first)
+endif
+endif
+endif
+
+.PHONY: all clean prefix-dirs zeda zm zeo roki dzco liw zx11 neuz roki-fd roki-gl $(CUSTOM_LIB)
+
+all: $(ALL_LIBS)
+
+# Run as `make SKIP_CHECKS=1` to build and install only, without
+# running each library's test and example targets (used by CI, where
+# the tests of X11/OpenGL libraries cannot run headlessly).
+
+prefix-dirs:
+	@mkdir -p $(PREFIX)/bin $(PREFIX)/lib $(PREFIX)/include
+	@echo $(PREFIX) > $(PREFIX_STAMP)
+
+zeda zm zeo roki dzco liw zx11 neuz roki-fd roki-gl $(CUSTOM_LIB): prefix-dirs
+
+# The static dependency graph of the upstream libraries. Rules for
+# libraries not listed in UPSTREAM_LIBS are harmless; UPSTREAM_LIBS
+# must be closed under these dependencies.
 
 zeda:
-	$(MAKE) -C zeda
-	$(MAKE) -C zeda install
+	$(LIBMK) zeda
+	$(LIBMK) zeda install
 ifndef SKIP_CHECKS
-	$(MAKE) -C zeda test
-	$(MAKE) -C zeda example
+	$(LIBMK) zeda test
+	$(LIBMK) zeda example
 endif
 
 zm: zeda
-	$(MAKE) -C zm
-	$(MAKE) -C zm install
+	$(LIBMK) zm
+	$(LIBMK) zm install
 ifndef SKIP_CHECKS
-	$(MAKE) -C zm test
-	$(MAKE) -C zm example
+	$(LIBMK) zm test
+	$(LIBMK) zm example
 endif
 
 zeo: zeda zm
-	$(MAKE) -C zeo
-	$(MAKE) -C zeo install
+	$(LIBMK) zeo
+	$(LIBMK) zeo install
 ifndef SKIP_CHECKS
-	$(MAKE) -C zeo test
-	$(MAKE) -C zeo example
+	$(LIBMK) zeo test
+	$(LIBMK) zeo example
 endif
 
 roki: zeda zm zeo
-	$(MAKE) -C roki
-	$(MAKE) -C roki install
+	$(LIBMK) roki
+	$(LIBMK) roki install
 ifndef SKIP_CHECKS
-	$(MAKE) -C roki test
-	$(MAKE) -C roki example
+	$(LIBMK) roki test
+	$(LIBMK) roki example
 endif
 
 dzco: zeda zm
-	$(MAKE) -C dzco
-	$(MAKE) -C dzco install
+	$(LIBMK) dzco
+	$(LIBMK) dzco install
 ifndef SKIP_CHECKS
-	$(MAKE) -C dzco test
-	$(MAKE) -C dzco example
+	$(LIBMK) dzco test
+	$(LIBMK) dzco example
 endif
 
 liw: zeda
-	$(MAKE) -C liw
-	$(MAKE) -C liw install
+	$(LIBMK) liw
+	$(LIBMK) liw install
 ifndef SKIP_CHECKS
-	$(MAKE) -C liw test
-	$(MAKE) -C liw example
+	$(LIBMK) liw test
+	$(LIBMK) liw example
 endif
 
 zx11: zeda
 	cd zx11 && sed -e "s/^CONFIG_USE_MAGICKWAND=y$$/CONFIG_USE_MAGICKWAND=n/" config.org > config
-	$(MAKE) -C zx11
-	$(MAKE) -C zx11 install
+	$(LIBMK) zx11
+	$(LIBMK) zx11 install
 ifndef SKIP_CHECKS
-	$(MAKE) -C zx11 test
-	$(MAKE) -C zx11 example
+	$(LIBMK) zx11 test
+	$(LIBMK) zx11 example
 endif
 
 neuz: zeda zm
-	$(MAKE) -C neuz
-	$(MAKE) -C neuz install
+	$(LIBMK) neuz
+	$(LIBMK) neuz install
 ifndef SKIP_CHECKS
-	$(MAKE) -C neuz test
+	$(LIBMK) neuz test
 endif
-#	$(MAKE) -C neuz example
+#	$(LIBMK) neuz example
 
 roki-fd: zeda zm zeo roki
-	$(MAKE) -C roki-fd
-	$(MAKE) -C roki-fd install
+	$(LIBMK) roki-fd
+	$(LIBMK) roki-fd install
 ifndef SKIP_CHECKS
-	$(MAKE) -C roki-fd test
-	$(MAKE) -C roki-fd example
+	$(LIBMK) roki-fd test
+	$(LIBMK) roki-fd example
 endif
 
 roki-gl: zeda zm zeo roki zx11 liw
 	cd roki-gl && sed -e "s/^CONFIG_USE_MAGICKWAND=y$$/CONFIG_USE_MAGICKWAND=n/" config.org > config
-	$(MAKE) -C roki-gl
-	$(MAKE) -C roki-gl install
+	$(LIBMK) roki-gl
+	$(LIBMK) roki-gl install
 ifndef SKIP_CHECKS
-	$(MAKE) -C roki-gl test
-	$(MAKE) -C roki-gl example
+	$(LIBMK) roki-gl test
+	$(LIBMK) roki-gl example
 endif
 
-pedi2: zeda zm dzco zeo roki roki-gl
-	$(MAKE) -C pedi2
-	$(MAKE) -C pedi2 install
-#	$(MAKE) -C pedi2 test
-	$(MAKE) -C pedi2 example
+ifneq ($(CUSTOM_LIB),)
+# Generic rule for the configured custom library. Extra targets may be
+# provided by mk/$(CUSTOM_LIB).mk, which can append phony targets to
+# CUSTOM_EXTRA_TARGETS (joined into `all`) and CUSTOM_EXTRA_CLEAN
+# (joined into `clean`).
+$(CUSTOM_LIB): $(CUSTOM_LIB_DEPS)
+	$(LIBMK) $(CUSTOM_LIB)
+	$(LIBMK) $(CUSTOM_LIB) install
+ifndef SKIP_CHECKS
+	$(LIBMK) $(CUSTOM_LIB) example
+endif
 
-pedi2-test: pedi2
-	cd pedi2/test && if [ ! -d gtest ]; then unzip archive/gtest-1.7.0.zip && mv gtest-1.7.0 gtest; fi
-	$(MAKE) -C pedi2/test
-
-pedi2-app: pedi2
-	$(MAKE) -C pedi2/app/dynmorph
-	$(MAKE) -C pedi2/app/joystick
+-include mk/$(CUSTOM_LIB).mk
+all: $(CUSTOM_EXTRA_TARGETS)
+clean: $(CUSTOM_EXTRA_CLEAN)
+endif
 
 clean:
-	$(MAKE) -C zeda clean || true
-	$(MAKE) -C zm clean || true
-	$(MAKE) -C zeo clean || true
-	$(MAKE) -C roki clean || true
-	$(MAKE) -C dzco clean || true
-	$(MAKE) -C liw clean || true
-	$(MAKE) -C zx11 clean || true
-	$(MAKE) -C neuz clean || true
-	$(MAKE) -C roki-fd clean || true
-	$(MAKE) -C roki-gl clean || true
-	$(MAKE) -C pedi2 clean || true
-	cd pedi2/test && make clean || true
-	$(MAKE) -C pedi2/app/dynmorph clean || true
-	$(MAKE) -C pedi2/app/joystick clean || true
+	for l in $(ALL_LIBS); do $(LIBMK) $$l clean || true; done
 	rm -f ./*/include/*/*_export.h
-	rm -rf .cache compile_commands.json
+	rm -rf .cache compile_commands.json $(PREFIX_STAMP)
