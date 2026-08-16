@@ -92,6 +92,10 @@ the `.envrc` (run `direnv allow` afterwards). Application makefiles
 compile via the installed `<lib>-config` scripts, which carry the
 prefix automatically.
 
+The three generated files at the project root — `.clangd`, `.envrc`,
+and `compile_commands.json` — are machine-local; it is recommended to
+list them (and `.local/`) in the project's own `.gitignore`.
+
 Rules of the road: always build through this repository's Makefile
 (it injects the configured `PREFIX` into the generated library
 makefiles; a build started inside a library directory would fall back
