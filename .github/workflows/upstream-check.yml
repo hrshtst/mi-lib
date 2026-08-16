@@ -15,8 +15,9 @@ concurrency:
   group: upstream-check
   cancel-in-progress: true
 
-env:
-  UPSTREAM_ORG: mi-lib
+# CI reads the tracked configuration defaults only: each step sources
+# config.default directly. config.local is gitignored (absent in CI
+# checkouts) and load_config.sh additionally skips it when CI=true.
 
 jobs:
   # Cheap API-only comparison of every fork against its upstream.
@@ -33,13 +34,13 @@ jobs:
         timeout-minutes: 3
         env:
           GH_TOKEN: ${{ github.token }}
-          OWNER: ${{ github.repository_owner }}
+          REPO_OWNER: ${{ github.repository_owner }}
         run: |
           set -euo pipefail
-          . ./liblist
+          . ./config.default
           rows=""
           for lib in $UPSTREAM_LIBS; do
-            row=$(gh api "repos/$OWNER/$lib/compare/main...$UPSTREAM_ORG:main" \
+            row=$(gh api "repos/$REPO_OWNER/$lib/compare/main...$UPSTREAM_OWNER:main" \
                     --jq "{lib: \"$lib\", status: .status, behind: .ahead_by}")
             rows="$rows$row"$'\n'
           done
@@ -54,8 +55,8 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   # Build the whole suite with the behind libraries at their upstream
-  # state (the forks themselves are not touched), then run pedi2's
-  # test suite. Only runs when detect found updates.
+  # state (the forks themselves are not touched), then run the custom
+  # library's test suite. Only runs when detect found updates.
   build:
     needs: detect
     if: needs.detect.outputs.any == 'true'
@@ -77,16 +78,19 @@ jobs:
       - name: Clone libraries at upstream state
         timeout-minutes: 5
         env:
-          OWNER: ${{ github.repository_owner }}
+          REPO_OWNER: ${{ github.repository_owner }}
           UPDATES: ${{ needs.detect.outputs.updates }}
         run: |
           set -euo pipefail
-          . ./liblist
-          for lib in $LIBS; do
-            git clone -q --depth 1 "https://github.com/$OWNER/$lib.git"
+          . ./config.default
+          for lib in $UPSTREAM_LIBS; do
+            git clone -q --depth 1 "https://github.com/$REPO_OWNER/$lib.git"
           done
+          if [ -n "$CUSTOM_LIB" ]; then
+            git clone -q --depth 1 "https://github.com/${CUSTOM_LIB_OWNER:-$REPO_OWNER}/$CUSTOM_LIB.git"
+          fi
           for lib in $(printf '%s' "$UPDATES" | jq -r '.[].lib'); do
-            git -C "$lib" fetch -q --depth 1 "https://github.com/$UPSTREAM_ORG/$lib.git" main
+            git -C "$lib" fetch -q --depth 1 "https://github.com/$UPSTREAM_OWNER/$lib.git" main
             git -C "$lib" checkout -q FETCH_HEAD
           done
       - name: Set up install prefix
@@ -97,9 +101,14 @@ jobs:
       - name: Build all libraries
         timeout-minutes: 40
         run: make SKIP_CHECKS=1
-      - name: Run pedi2 test suite
+      - name: Run custom library test suite
         timeout-minutes: 10
-        run: make -C pedi2/test test
+        run: |
+          set -euo pipefail
+          . ./config.default
+          if [ -n "$CUSTOM_TEST_CMD" ]; then
+            eval "$CUSTOM_TEST_CMD"
+          fi
 
   # Keep a single tracking issue up to date with the result.
   report:
@@ -110,18 +119,20 @@ jobs:
     permissions:
       issues: write
     steps:
+      - uses: actions/checkout@v5
       - name: Create or update tracking issue
         env:
           GH_TOKEN: ${{ github.token }}
-          OWNER: ${{ github.repository_owner }}
+          REPO_OWNER: ${{ github.repository_owner }}
           UPDATES: ${{ needs.detect.outputs.updates }}
           BUILD_RESULT: ${{ needs.build.result }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
+          . ./config.default
           case "$BUILD_RESULT" in
-            success) verdict="✅ Build and pedi2 tests passed with upstream changes — safe to pull." ;;
-            failure) verdict="❌ Build or pedi2 tests failed with upstream changes — pedi2 (or a library) needs fixing before pulling." ;;
+            success) verdict="✅ Build and $CUSTOM_LIB tests passed with upstream changes — safe to pull." ;;
+            failure) verdict="❌ Build or $CUSTOM_LIB tests failed with upstream changes — $CUSTOM_LIB (or a library) needs fixing before pulling." ;;
             *)       verdict="⚠️ Build result: $BUILD_RESULT" ;;
           esac
           {
@@ -129,12 +140,12 @@ jobs:
             echo
             echo "| library | status | commits behind | changes |"
             echo "|---|---|---|---|"
-            printf '%s' "$UPDATES" | jq -r --arg o "$OWNER" --arg u "$UPSTREAM_ORG" \
+            printf '%s' "$UPDATES" | jq -r --arg o "$REPO_OWNER" --arg u "$UPSTREAM_OWNER" \
               '.[] | "| \(.lib) | \(.status) | \(.behind) | [compare](https://github.com/\($o)/\(.lib)/compare/main...\($u):main) |"'
             echo
             echo "$verdict"
             echo
-            echo "cc @$OWNER"
+            echo "cc @$REPO_OWNER"
           } > body.md
           gh label create upstream-check --repo "$GITHUB_REPOSITORY" --force \
             --description "Automated upstream update tracking" --color 1D76DB

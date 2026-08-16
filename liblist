@@ -1,6 +1,0 @@
-# shellcheck shell=bash
-# Deprecated: the configuration moved to config.default (+ optional
-# config.local). This shim keeps old callers working until they are
-# migrated, then it will be removed.
-# shellcheck source=load_config.sh
-. "$(dirname "${BASH_SOURCE[0]:-$0}")/load_config.sh"
