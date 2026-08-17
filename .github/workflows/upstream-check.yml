@@ -38,9 +38,12 @@ jobs:
         run: |
           set -euo pipefail
           . ./config.default
+          # A committed non-empty OWNER designates the fork account;
+          # empty means the owner of this repository.
+          EFFECTIVE_OWNER="${OWNER:-$REPO_OWNER}"
           rows=""
           for lib in $UPSTREAM_LIBS; do
-            row=$(gh api "repos/$REPO_OWNER/$lib/compare/main...$UPSTREAM_OWNER:main" \
+            row=$(gh api "repos/$EFFECTIVE_OWNER/$lib/compare/main...$UPSTREAM_OWNER:main" \
                     --jq "{lib: \"$lib\", status: .status, behind: .ahead_by}")
             rows="$rows$row"$'\n'
           done
@@ -83,8 +86,9 @@ jobs:
         run: |
           set -euo pipefail
           . ./config.default
+          EFFECTIVE_OWNER="${OWNER:-$REPO_OWNER}"
           for lib in $UPSTREAM_LIBS; do
-            git clone -q --depth 1 "https://github.com/$REPO_OWNER/$lib.git"
+            git clone -q --depth 1 "https://github.com/$EFFECTIVE_OWNER/$lib.git"
           done
           if [ -n "$CUSTOM_LIB" ]; then
             git clone -q --depth 1 "https://github.com/${CUSTOM_LIB_OWNER:-$REPO_OWNER}/$CUSTOM_LIB.git"
@@ -131,6 +135,9 @@ jobs:
         run: |
           set -euo pipefail
           . ./config.default
+          EFFECTIVE_OWNER="${OWNER:-$REPO_OWNER}"
+          diverged=$(printf '%s' "$UPDATES" \
+            | jq -r '[.[] | select(.status == "diverged") | .lib] | join(" ")')
           case "$BUILD_RESULT" in
             success) verdict="✅ Build and $CUSTOM_LIB tests passed with upstream changes — safe to pull." ;;
             failure) verdict="❌ Build or $CUSTOM_LIB tests failed with upstream changes — $CUSTOM_LIB (or a library) needs fixing before pulling." ;;
@@ -141,10 +148,14 @@ jobs:
             echo
             echo "| library | status | commits behind | changes |"
             echo "|---|---|---|---|"
-            printf '%s' "$UPDATES" | jq -r --arg o "$REPO_OWNER" --arg u "$UPSTREAM_OWNER" \
+            printf '%s' "$UPDATES" | jq -r --arg o "$EFFECTIVE_OWNER" --arg u "$UPSTREAM_OWNER" \
               '.[] | "| \(.lib) | \(.status) | \(.behind) | [compare](https://github.com/\($o)/\(.lib)/compare/main...\($u):main) |"'
             echo
             echo "$verdict"
+            if [ -n "$diverged" ]; then
+              echo
+              echo "⚠️ Diverged from upstream: $diverged — sync_upstream.sh only fast-forwards; these forks need manual reconciliation (rebase or reset) before pulling."
+            fi
             echo
             echo "cc @$REPO_OWNER"
           } > body.md
