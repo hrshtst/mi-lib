@@ -188,6 +188,7 @@ user_project/
 │       ├─ libzeda_cpp.so
 │       ├─ libzm.so
 │       └─ libzm_cpp.so
+├─ Makefile               <- drives libraries and applications (below)
 ├─ application/
 │   └─ simulation1/       <- built via the installed <lib>-config
 ├─ third_party/mi-lib/    <- this repository
@@ -208,13 +209,54 @@ COMPILE_DB="/path/to/user_project/compile_commands.json"
 VERSIONS_LOCK="versions.local.lock"
 ```
 
-Then `./clone.sh && make && ./build_compile_commands.sh` builds and
-installs into `.local`, captures the application directories into the
-database at the project root, and generates `.clangd` beside it so
-clangd covers the application sources too. `./gen_envrc.sh` writes
-the `.envrc` (run `direnv allow` afterwards). Application makefiles
-compile via the installed `<lib>-config` scripts, which carry the
-prefix automatically.
+And a `Makefile` at the project root ties the pieces together (the
+metapackage scripts locate their own directory, so they can be
+invoked from anywhere):
+
+```make
+MILIB    := third_party/mi-lib
+PREFIX   := $(shell $(MILIB)/load_config.sh --get PREFIX)
+APP_DIRS := $(shell $(MILIB)/load_config.sh --get APP_DIRS)
+
+# The application makefiles find the installed <lib>-config scripts
+# through PATH; running the built programs needs the shared libraries.
+export PATH := $(PREFIX)/bin:$(PATH)
+ifeq ($(LD_LIBRARY_PATH),)
+export LD_LIBRARY_PATH := $(PREFIX)/lib
+else
+export LD_LIBRARY_PATH := $(PREFIX)/lib:$(LD_LIBRARY_PATH)
+endif
+
+.PHONY: all libs apps db clean
+
+all: libs apps
+
+# Libraries always through the metapackage Makefile, which injects the
+# configured PREFIX into the generated library makefiles (add
+# SKIP_CHECKS=1 to skip the libraries' test and example targets).
+libs:
+	$(MAKE) -C $(MILIB)
+
+apps: libs
+	for d in $(APP_DIRS); do $(MAKE) -C $$d || exit 1; done
+
+# Clean rebuild, compilation database, .clangd, version freeze.
+db:
+	$(MILIB)/build_compile_commands.sh
+
+clean:
+	$(MAKE) -C $(MILIB) clean
+	for d in $(APP_DIRS); do $(MAKE) -C $$d clean || true; done
+```
+
+After a one-time `third_party/mi-lib/clone.sh`, `make` builds and
+installs the libraries into `.local` and compiles the applications,
+and `make db` regenerates the compilation database at the project
+root — application sources included — with `.clangd` beside it.
+`third_party/mi-lib/gen_envrc.sh` writes the `.envrc` (run
+`direnv allow` afterwards). Application makefiles compile via the
+installed `<lib>-config` scripts, which carry the prefix
+automatically.
 
 The three generated files at the project root — `.clangd`, `.envrc`,
 and `compile_commands.json` — are machine-local; it is recommended to
