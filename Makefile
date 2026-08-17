@@ -42,6 +42,9 @@ all: $(ALL_LIBS)
 # Run as `make SKIP_CHECKS=1` to build and install only, without
 # running each library's test and example targets (used by CI, where
 # the tests of X11/OpenGL libraries cannot run headlessly).
+# Run as `make SKIP_CPP=1` to skip the C++ variant pass of the
+# CPP_LIBS libraries during quick iterations; a normal `make` remains
+# the source of truth.
 
 prefix-dirs:
 	@mkdir -p $(PREFIX)/bin $(PREFIX)/lib $(PREFIX)/include
@@ -133,6 +136,31 @@ roki-gl: zeda zm zeo roki zx11 liw
 ifndef SKIP_CHECKS
 	$(LIBMK) roki-gl test
 	$(LIBMK) roki-gl example
+endif
+
+# C++ variants: each library in CPP_LIBS is rebuilt with CC=g++ into
+# lib<name>_cpp.so after its C build (the <lib>-config tools advertise
+# them via -lcpp). The generated makefiles compile objects in place,
+# shared between compilers, so both passes must start from clean
+# objects — these libraries always rebuild from scratch.
+CPP_LIBS := $(shell ./load_config.sh --get CPP_LIBS)
+ifndef SKIP_CPP
+CPP_TARGETS := $(addsuffix -cpp,$(CPP_LIBS))
+else
+CPP_TARGETS :=
+endif
+
+ifneq ($(CPP_TARGETS),)
+.PHONY: $(CPP_TARGETS)
+all: $(CPP_TARGETS)
+# `$(LIBMK) $* lib` would silently no-op: the clone makefiles have no
+# `lib` target and the lib/ directory satisfies it — drive src/
+# directly instead.
+$(CPP_TARGETS): %-cpp: %
+	$(LIBMK) $*/src clean
+	$(LIBMK) $*/src CC=g++
+	$(LIBMK) $* install
+	$(LIBMK) $*/src clean
 endif
 
 ifneq ($(CUSTOM_LIB),)

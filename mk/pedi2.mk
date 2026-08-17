@@ -5,7 +5,9 @@ CUSTOM_EXTRA_TARGETS += pedi2-test pedi2-app
 CUSTOM_EXTRA_CLEAN   += pedi2-clean-extra
 .PHONY: pedi2-test pedi2-app pedi2-clean-extra
 
-pedi2-test: pedi2
+# The gtest suite links the C++ library variants (roki-config -lcpp,
+# dzco-config -lcpp), so it must run after the CPP_LIBS pass.
+pedi2-test: pedi2 $(CPP_TARGETS)
 	cd pedi2/test && if [ ! -d gtest ]; then unzip archive/gtest-1.7.0.zip && mv gtest-1.7.0 gtest; fi
 	$(LIBMK) pedi2/test
 ifndef SKIP_CHECKS

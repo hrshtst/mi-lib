@@ -17,9 +17,9 @@
 
 MILIB_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 
-_MILIB_VARS="UPSTREAM_LIBS CUSTOM_LIB CUSTOM_LIB_DEPS CUSTOM_TEST_CMD \
-UPSTREAM_OWNER OWNER CUSTOM_LIB_OWNER GIT_PROTOCOL PREFIX ENVRC_DIR \
-APP_DIRS COMPILE_DB VERSIONS_LOCK"
+_MILIB_VARS="UPSTREAM_LIBS CUSTOM_LIB CUSTOM_LIB_DEPS CPP_LIBS \
+CUSTOM_TEST_CMD UPSTREAM_OWNER OWNER CUSTOM_LIB_OWNER GIT_PROTOCOL \
+PREFIX ENVRC_DIR APP_DIRS COMPILE_DB VERSIONS_LOCK"
 
 # Remember which variables the caller already set in the environment.
 for _v in $_MILIB_VARS; do
@@ -84,6 +84,17 @@ if [ -n "${CUSTOM_LIB:-}" ]; then
 else
   LIBS="$UPSTREAM_LIBS"
 fi
+# Effective CPP_LIBS: entries outside UPSTREAM_LIBS are dropped, so a
+# configuration that lists only a few libraries keeps working with the
+# tracked default.
+_cpp_libs=""
+for _l in ${CPP_LIBS:-}; do
+  case " $UPSTREAM_LIBS " in
+    *" $_l "*) _cpp_libs="$_cpp_libs $_l" ;;
+  esac
+done
+CPP_LIBS="${_cpp_libs# }"
+unset _l _cpp_libs
 
 ### Helpers ##########################################################
 

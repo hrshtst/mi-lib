@@ -28,6 +28,12 @@ CUSTOM_LIB="pedi2"
 # Its dependencies among UPSTREAM_LIBS (drives the build order).
 CUSTOM_LIB_DEPS="zeda zm dzco zeo roki roki-gl"
 
+# Upstream libraries whose C++ variants (lib<name>_cpp.so, the same
+# sources compiled with g++) are also built and installed by make.
+# Entries not listed in UPSTREAM_LIBS are ignored; "" disables the
+# C++ pass entirely.
+CPP_LIBS="zeda zm dzco zeo roki liw roki-fd"
+
 # Command CI runs to test the custom library after a full build
 # ("" to skip).
 CUSTOM_TEST_CMD="make -C pedi2/test test"
