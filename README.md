@@ -41,22 +41,110 @@ $ ./build_compile_commands.sh    # rebuild and re-freeze versions
 ## Pattern 2: custom configuration
 
 Create `config.local` next to `config.default` and assign only what
-differs. CI never reads `config.local` — the workflow always builds
-with the tracked defaults. Commonly customized:
+differs. An assignment replaces the default value completely (there
+is no appending), and CI never reads `config.local` — the workflow
+always builds with the tracked defaults. The sub-patterns below go
+from the simplest custom setup to a fully customized one.
 
-- `UPSTREAM_LIBS` — the managed upstream libraries. The list must be
-  closed under the dependency graph in the Makefile.
-- `CUSTOM_LIB`, `CUSTOM_LIB_DEPS`, `CUSTOM_TEST_CMD` — your own
-  library instead of pedi2 ("" for none). Extra make targets for it
-  can be provided in `mk/<name>.mk`, appending to
-  `CUSTOM_EXTRA_TARGETS` and `CUSTOM_EXTRA_CLEAN` (see `mk/pedi2.mk`).
-- `OWNER`, `CUSTOM_LIB_OWNER`, `GIT_PROTOCOL` — where and how to
-  clone; empty values are derived from this repository's origin URL.
-  Setting `OWNER="$UPSTREAM_OWNER"` selects the forkless mode: the
-  original repositories are tracked directly, `fork.sh` does nothing,
-  and `sync_upstream.sh` fast-forwards from origin without pushing.
-- `VERSIONS_LOCK` — e.g. `versions.local.lock` (gitignored) to pin
-  versions locally instead of in the tracked `versions.lock`.
+### Pattern 2-a: original libraries only, without forks
+
+Track a subset of the original mi-lib repositories directly over
+HTTPS — no forks, no custom library, and, since the originals are
+public, no GitHub account:
+
+```sh
+# config.local
+UPSTREAM_LIBS="zeda zm dzco"    # must be dependency-closed
+CUSTOM_LIB=""
+OWNER="$UPSTREAM_OWNER"         # forkless mode: track the originals
+GIT_PROTOCOL="https"
+```
+
+Then `./clone.sh && make` is everything: in forkless mode `fork.sh`
+has nothing to do, `clone.sh` adds no upstream remotes, and
+`sync_upstream.sh` fast-forwards from the originals without pushing
+anywhere. Note that assigning `UPSTREAM_LIBS` replaces the default
+list entirely — to manage the whole suite this way, list all ten
+libraries — and the list must stay closed under the dependency graph
+in the Makefile (e.g. dzco needs zeda and zm; roki-gl needs zeda zm
+zeo roki zx11 liw).
+
+### Pattern 2-b: your forks and your own custom library
+
+The full workflow for developing your own library on top of the
+suite. Start by forking this repository itself and cloning your fork:
+the empty `OWNER`, `CUSTOM_LIB_OWNER`, and `GIT_PROTOCOL` defaults
+are then derived from your clone's origin URL (your account, your
+protocol). If you cloned someone else's metapackage instead, set
+`OWNER` explicitly.
+
+```sh
+# config.local
+UPSTREAM_LIBS="zeda zm"                   # what mylib needs
+CUSTOM_LIB="mylib"                        # your repository's name
+CUSTOM_LIB_DEPS="zeda zm"                 # its deps among UPSTREAM_LIBS
+CUSTOM_TEST_CMD="make -C mylib/test test" # run by CI ("" to skip)
+```
+
+`./fork.sh` forks the configured upstream libraries into your account
+(through the gh CLI, logging in if necessary), `./clone.sh` clones
+your forks plus `mylib` and adds the original repositories as
+`upstream` remotes to the forks, and `make` builds everything in
+dependency order. The custom library is driven exactly like an
+upstream one — `make`, `make install`, and `make example` run in its
+directory with the configured `PREFIX` — so it must follow the mi-lib
+makefile conventions (as [pedi2](https://github.com/hrshtst/pedi2)
+does). Anything beyond that goes into `mk/mylib.mk`, which may append
+phony targets to `CUSTOM_EXTRA_TARGETS` (joined into `all`) and
+`CUSTOM_EXTRA_CLEAN` (joined into `clean`); see `mk/pedi2.mk`, which
+adds pedi2's gtest suite and application directories this way. If the
+custom library lives under a different account than the forks, set
+`CUSTOM_LIB_OWNER`.
+
+Since CI reads only `config.default`, commit your library set and
+custom library there (in your fork of this repository) when the
+weekly `upstream-check` workflow should build and test *your*
+configuration; keep `config.local` for machine-local values.
+
+### Pattern 2-c: pinning your own combination of versions
+
+Extends Pattern 2-b for day-to-day development, where the forks and
+the custom library move at their own pace and you want to snapshot
+combinations that are known to work. The tracked `versions.lock`
+records the default configuration of this repository; with a custom
+library set, pin into a gitignored local lock instead:
+
+```sh
+# config.local (in addition to Pattern 2-b)
+VERSIONS_LOCK="versions.local.lock"
+```
+
+`./freeze_versions.sh` snapshots the checked-out state of every
+configured library into that file, and `./build_compile_commands.sh`
+re-freezes after each successful rebuild, so the lock always points
+at the last combination that built green. When an experiment goes
+wrong — say `./sync_upstream.sh` pulls an upstream change that breaks
+the custom library — `./thaw_versions.sh` restores the recorded
+state, and a clean rebuild brings the installation back in line. To
+share the pinned versions across machines instead, keep the default
+`VERSIONS_LOCK="versions.lock"` and commit the lock in your fork of
+this repository.
+
+### Further configuration notes
+
+- Environment variables override both config files for one-off runs,
+  e.g. `PREFIX=/tmp/prefix ./build_compile_commands.sh` (precedence:
+  environment > `config.local` > `config.default`).
+- `GIT_PROTOCOL` accepts `ssh` or `https`; as with the owner
+  variables, empty derives it from this repository's origin URL.
+- `UPSTREAM_OWNER` names the organization hosting the original
+  libraries and rarely needs changing.
+- Values must not contain spaces — they travel through make and
+  sub-make command lines unquoted.
+- The installation-related variables — `PREFIX`, `APP_DIRS`,
+  `COMPILE_DB`, and `ENVRC_DIR` (where `gen_envrc.sh` writes `.envrc`;
+  empty = the directory containing `PREFIX`) — are the subject of
+  Pattern 3.
 
 ## Pattern 3: project-local install with out-of-tree applications
 
