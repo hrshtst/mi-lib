@@ -13,6 +13,29 @@ Everything is driven by a layered configuration: `config.default`
 variables override both. The library clones live inside this directory
 but are ignored by git.
 
+## Scripts at a glance
+
+All scripts read the same layered configuration through
+`load_config.sh` (not a user command). `fork.sh`, `sync_upstream.sh`,
+and the freeze/thaw pair accept `--dry-run`; `clone.sh` is idempotent
+and skips existing clones:
+
+| script | what it does | when to run |
+|---|---|---|
+| `install_prereq.sh` | installs the required system packages (`--check` to verify only) | once per machine |
+| `fork.sh` | forks the upstream libraries into your account | once per account (no-op in forkless mode) |
+| `clone.sh` | clones the configured libraries, adds `upstream` remotes | once per machine, or after adding a library |
+| `sync_upstream.sh` | fast-forwards each library's `main` to upstream (and pushes the forks) | when `upstream-check` reports updates |
+| `build_compile_commands.sh` | clean rebuild, regenerates the compilation database and `.clangd`, freezes versions | after any library changes |
+| `freeze_versions.sh` | records each library's current commit into the lock file | after a combination proves good (automatic at the end of a successful `build_compile_commands.sh`) |
+| `thaw_versions.sh` | checks the recorded commits out again | to roll back or reproduce the locked state |
+| `gen_envrc.sh` | writes the direnv `.envrc` for the install prefix | project-local installs (Pattern 3) |
+
+In short: `clone.sh` makes the working copies exist,
+`sync_upstream.sh` moves them forward to the newest upstream state,
+and `freeze_versions.sh`/`thaw_versions.sh` pin and restore a known
+good combination.
+
 ## Pattern 1: system install with the default configuration
 
 Installs all the upstream libraries and [pedi2](https://github.com/hrshtst/pedi2)
