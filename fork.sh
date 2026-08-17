@@ -72,6 +72,7 @@ check_gh_login() {
 }
 
 fork_repos() {
+  FAILED=""
   echo "🔁 Starting to fork repositories from '$UPSTREAM_OWNER'..."
   if $DRY_RUN; then
     echo "💡 Dry-run mode enabled — no actual forks will be created."
@@ -84,18 +85,36 @@ fork_repos() {
     else
       if gh repo fork "${UPSTREAM_OWNER}/${repo}" --clone=false >/dev/null 2>&1; then
         echo "   ✅ Forked ${repo}"
+      elif gh repo view "${OWNER}/${repo}" >/dev/null 2>&1; then
+        echo "   💡 Fork ${OWNER}/${repo} already exists"
       else
-        echo "   ⚠️  Skipped or failed to fork ${repo} (possibly already forked)"
+        echo "   ❌ Failed to fork ${repo}"
+        FAILED="$FAILED $repo"
       fi
     fi
   done
 
+  if [ -n "$FAILED" ]; then
+    echo "❌ Failed to fork:$FAILED"
+    exit 1
+  fi
   echo "🎉 Forking process completed."
+}
+
+# gh creates forks under the authenticated account; refuse to proceed
+# when that is not the account the configuration expects.
+check_owner_match() {
+  if [ "$USERNAME" != "$OWNER" ]; then
+    echo "❌ Logged in to GitHub as '$USERNAME', but the configuration expects forks under '$OWNER'."
+    echo "   Set OWNER in config.local, or log in to the expected account: gh auth login"
+    exit 1
+  fi
 }
 
 # === MAIN EXECUTION FLOW ===
 check_gh_installed
 check_gh_login
+check_owner_match
 fork_repos
 
 # Local Variables:
