@@ -42,7 +42,7 @@ Installs all the upstream libraries and [pedi2](https://github.com/hrshtst/pedi2
 to `~/usr`:
 
 ```console
-$ ./install_prereq.sh   # install required packages (sudo; --check to verify only)
+$ ./install_prereq.sh   # Debian/Ubuntu packages (sudo; --check to verify only)
 $ ./fork.sh             # fork the upstream libraries into your account (once)
 $ ./clone.sh            # clone the libraries, add upstream remotes
 $ make                  # build, install, and test everything
