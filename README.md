@@ -143,7 +143,8 @@ lives under a different account than the forks, set
 Since CI reads only `config.default`, commit your library set and
 custom library there (in your fork of this repository) when the
 weekly `upstream-check` workflow should build and test *your*
-configuration; keep `config.local` for machine-local values.
+configuration — a committed non-empty `OWNER` is honored as well;
+keep `config.local` for machine-local values.
 
 ### Pattern 2-c: pinning your own combination of versions
 
