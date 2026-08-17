@@ -48,9 +48,11 @@ through `load_config.sh`. See README.md for usage patterns.
   command's status (`cmd | tail` hides failures), and unquoted `$VAR`
   does not word-split. Run the repo's scripts with bash and check exit
   codes without pipes.
-- `versions.lock` records the last green build; update it only through
-  `freeze_versions.sh` after a successful build
-  (`build_compile_commands.sh` does this automatically).
+- `versions.lock` records the last green build and must stay
+  reproducible from its commit IDs alone: `freeze_versions.sh` refuses
+  dirty libraries (untracked files are never captured), and
+  `build_compile_commands.sh` checks cleanliness before rebuilding,
+  freezing on success.
 
 ## Conventions
 
