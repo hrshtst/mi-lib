@@ -16,8 +16,10 @@ through `load_config.sh`. See README.md for usage patterns.
 ## Commands
 
 - `make` — build, install, and test everything to the configured
-  PREFIX; `make SKIP_CHECKS=1` skips the libraries' test/example
-  targets (what CI uses).
+  PREFIX, including the C++ variants (`lib<name>_cpp.so`) of the
+  libraries in CPP_LIBS; `make SKIP_CHECKS=1` skips the libraries'
+  test/example targets (what CI uses), `make SKIP_CPP=1` skips the
+  C++ pass.
 - `./build_compile_commands.sh` — clean rebuild under bear,
   regenerates `compile_commands.json` and `.clangd`, then freezes the
   version lock.
@@ -44,6 +46,10 @@ through `load_config.sh`. See README.md for usage patterns.
 - The generated library makefiles have no header dependencies: after
   switching branches or syncing in any library, run a clean rebuild
   before trusting build or test results.
+- The gcc and g++ passes share their object files (same `src/*.o`),
+  so the CPP_LIBS libraries always rebuild from scratch, and a
+  `lib*_cpp.so` not produced by the current build is untrustworthy —
+  `build_compile_commands.sh` fails on stale ones.
 - The interactive shell is zsh: after a pipeline, `$?` is the last
   command's status (`cmd | tail` hides failures), and unquoted `$VAR`
   does not word-split. Run the repo's scripts with bash and check exit

@@ -49,6 +49,13 @@ $ ./clone.sh            # clone the libraries, add upstream remotes
 $ make                  # build, install, and test everything
 ```
 
+Besides the C libraries, `make` compiles the libraries listed in
+`CPP_LIBS` a second time with `g++` into `lib<name>_cpp.so` — the
+C++ variants that the `<lib>-config` tools advertise via `-lcpp`.
+These libraries always rebuild from scratch (the two passes share
+their object files); `make SKIP_CPP=1` skips the C++ pass during
+quick iterations.
+
 The `upstream-check` GitHub Actions workflow runs weekly: it compares
 every fork with its upstream and, when updates exist, builds the
 whole suite at the upstream state and runs the custom library's test
@@ -187,11 +194,15 @@ this repository.
   variables, empty derives it from this repository's origin URL.
 - `UPSTREAM_OWNER` names the organization hosting the original
   libraries and rarely needs changing.
-- List variables (`UPSTREAM_LIBS`, `CUSTOM_LIB_DEPS`, `APP_DIRS`) are
-  space-separated and their entries must not contain whitespace;
-  scalar values such as `PREFIX` must not contain spaces either (they
-  travel through make command lines unquoted). `CUSTOM_TEST_CMD` is a
-  full shell command and may contain spaces.
+- `CPP_LIBS` names the upstream libraries whose C++ variants
+  (`lib<name>_cpp.so`) are built and installed by `make`; entries not
+  listed in `UPSTREAM_LIBS` are ignored, and an empty value disables
+  the C++ pass.
+- List variables (`UPSTREAM_LIBS`, `CUSTOM_LIB_DEPS`, `CPP_LIBS`,
+  `APP_DIRS`) are space-separated and their entries must not contain
+  whitespace; scalar values such as `PREFIX` must not contain spaces
+  either (they travel through make command lines unquoted).
+  `CUSTOM_TEST_CMD` is a full shell command and may contain spaces.
 - The installation-related variables — `PREFIX`, `APP_DIRS`,
   `COMPILE_DB`, and `ENVRC_DIR` (where `gen_envrc.sh` writes `.envrc`;
   empty = the directory containing `PREFIX`) — are the subject of
@@ -316,7 +327,9 @@ commits out again, skipping repositories with local changes.
 `./build_compile_commands.sh` verifies the libraries are clean, then
 cleans, rebuilds everything under
 [bear](https://github.com/rizsotto/Bear),
-captures the application directories, adds header entries with
+captures the application directories, checks that every configured
+C++ variant was produced by that very build (a stale `lib*_cpp.so`
+fails the run), adds header entries with
 [compdb](https://github.com/Sarcasm/compdb), and freezes the versions
 — so the lock always reflects the last successful build. Restart
 clangd in your editor after regenerating the database.
