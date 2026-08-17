@@ -38,6 +38,7 @@ fi
 
 SYNCED=""
 FAILED=""
+NOT_ON_MAIN=""
 for lib in $UPSTREAM_LIBS; do
   echo "==> $lib"
   if ! git -C "$lib" remote get-url "$REMOTE" >/dev/null 2>&1; then
@@ -72,6 +73,7 @@ for lib in $UPSTREAM_LIBS; do
     # Fast-forward main without switching away from the current branch.
     git -C "$lib" fetch -q . "$REMOTE/main:main"
     echo "⚠️  '$current' is checked out; consider rebasing it onto main"
+    NOT_ON_MAIN="$NOT_ON_MAIN $lib($current)"
   fi
   if milib_forkless; then
     echo "✅  Fast-forwarded main by $behind commit(s)"
@@ -86,6 +88,10 @@ if [ -n "$SYNCED" ]; then
   echo
   echo "🎉 Synced:$SYNCED"
   echo "💡 Rebuild to adopt the updates: ./build_compile_commands.sh"
+fi
+if [ -n "$NOT_ON_MAIN" ]; then
+  echo "⚠️ main updated but not checked out in:$NOT_ON_MAIN"
+  echo "💡 Rebase those branches onto main (or check out main) before rebuilding to test the upstream state"
 fi
 if [ -n "$FAILED" ]; then
   echo "❌ Needs attention:$FAILED"
