@@ -8,6 +8,9 @@ CUSTOM_EXTRA_CLEAN   += pedi2-clean-extra
 pedi2-test: pedi2
 	cd pedi2/test && if [ ! -d gtest ]; then unzip archive/gtest-1.7.0.zip && mv gtest-1.7.0 gtest; fi
 	$(LIBMK) pedi2/test
+ifndef SKIP_CHECKS
+	$(LIBMK) pedi2/test test
+endif
 
 pedi2-app: pedi2
 	$(LIBMK) pedi2/app/dynmorph
