@@ -18,8 +18,17 @@ case "$(basename "$COMPILE_DB")" in
     exit 1
     ;;
 esac
+if [ ! -d "$(dirname "$COMPILE_DB")" ]; then
+  echo "❌ COMPILE_DB directory does not exist: $(dirname "$COMPILE_DB")"
+  exit 1
+fi
 DBDIR="$(cd "$(dirname "$COMPILE_DB")" && pwd)"
 COMPILE_DB="$DBDIR/$(basename "$COMPILE_DB")"
+
+# The successful build ends by freezing the versions; verify up front
+# that the libraries are clean enough to produce a reproducible lock,
+# instead of failing after the whole rebuild.
+./freeze_versions.sh --check
 
 # Builds and tests need the installed tools and libraries.
 export PATH="$PREFIX/bin:$PATH"

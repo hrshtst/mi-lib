@@ -27,7 +27,7 @@ and skips existing clones:
 | `clone.sh` | clones the configured libraries, adds `upstream` remotes | once per machine, or after adding a library |
 | `sync_upstream.sh` | fast-forwards each library's `main` to upstream (and pushes the forks) | when `upstream-check` reports updates |
 | `build_compile_commands.sh` | clean rebuild, regenerates the compilation database and `.clangd`, freezes versions | after any library changes |
-| `freeze_versions.sh` | records each library's current commit into the lock file | after a combination proves good (automatic at the end of a successful `build_compile_commands.sh`) |
+| `freeze_versions.sh` | records each library's commit into the lock file (refuses dirty trees) | after a combination proves good (automatic at the end of a successful `build_compile_commands.sh`) |
 | `thaw_versions.sh` | checks the recorded commits out again | to roll back or reproduce the locked state |
 | `gen_envrc.sh` | writes the direnv `.envrc` for the install prefix | project-local installs (Pattern 3) |
 
@@ -153,10 +153,12 @@ library set, pin into a gitignored local lock instead:
 VERSIONS_LOCK="versions.local.lock"
 ```
 
-`./freeze_versions.sh` snapshots the checked-out state of every
-configured library into that file, and `./build_compile_commands.sh`
-re-freezes after each successful rebuild, so the lock always points
-at the last combination that built green. When an experiment goes
+`./freeze_versions.sh` records the commit of every configured library
+into that file — refusing to run while any library has uncommitted
+changes to tracked files, so a lock is always reproducible from the
+recorded commits — and `./build_compile_commands.sh` re-freezes after
+each successful rebuild, so the lock always points at the last
+combination that built green. When an experiment goes
 wrong, the recorded combination is one command away:
 
 ```console
@@ -293,11 +295,15 @@ to that library's own config), and a `PREFIX` change requires
 
 ## Version pinning and the compilation database
 
-`./freeze_versions.sh` records each library's commit, branch, and a
-`dirty` marker into the lock file (`--dry-run` diffs against it);
-`./thaw_versions.sh` checks the recorded commits out again, skipping
-repositories with local changes. `./build_compile_commands.sh` cleans,
-rebuilds everything under [bear](https://github.com/rizsotto/Bear),
+`./freeze_versions.sh` records each library's commit and branch into
+the lock file (`--dry-run` diffs against it). A lock is reproducible
+from its commit IDs alone: freezing refuses to run while any library
+has staged or unstaged changes to tracked files — untracked files are
+ignored and never captured. `./thaw_versions.sh` checks the recorded
+commits out again, skipping repositories with local changes.
+`./build_compile_commands.sh` verifies the libraries are clean, then
+cleans, rebuilds everything under
+[bear](https://github.com/rizsotto/Bear),
 captures the application directories, adds header entries with
 [compdb](https://github.com/Sarcasm/compdb), and freezes the versions
 — so the lock always reflects the last successful build. Restart
