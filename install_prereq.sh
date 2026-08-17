@@ -9,11 +9,11 @@
 set -euo pipefail
 
 ### (for download & compilation)
-BUILD_PKGS=(git wget unzip rename make gcc fakeroot pkg-config)
+BUILD_PKGS=(git wget unzip rename make gcc g++ fakeroot pkg-config)
 ### (for ZEDA & X11 & OpenGL)
 LIB_PKGS=(libxml2-dev liblzf-dev xorg-dev libxft-dev libfreetype-dev libtiff-dev libjpeg-dev libwebp-dev libmagickwand-dev freeglut3-dev libglew-dev libglfw3-dev)
 ### (for generating compile_commands.json)
-TOOL_PKGS=(bear)
+TOOL_PKGS=(bear jq)
 ### (recommended: per-directory PATH/LD_LIBRARY_PATH for ~/usr)
 RECOMMENDED_PKGS=(direnv)
 

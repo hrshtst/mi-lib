@@ -50,6 +50,10 @@ export LD_LIBRARY_PATH="$PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
   echo "    - -I$PREFIX/include"
 } > "$DBDIR/.clangd"
 
+# Timestamp reference for the artifact freshness check below.
+BUILD_STAMP="$(mktemp)"
+trap 'rm -f "$BUILD_STAMP"' EXIT
+
 make clean
 bear --output "$COMPILE_DB" -- make
 
@@ -60,6 +64,42 @@ for d in $APP_DIRS; do
   make -C "$d" clean || true
   bear --append --output "$COMPILE_DB" -- make -C "$d"
 done
+
+# Every configured C++ variant must have been produced by this very
+# build; an older file means the tests above validated binaries that
+# do not correspond to the checked-out sources.
+for lib in $CPP_LIBS; do
+  so="$PREFIX/lib/lib${lib}_cpp.so"
+  if [ ! "$so" -nt "$BUILD_STAMP" ]; then
+    echo "❌ C++ variant missing or stale (not produced by this build): $so"
+    exit 1
+  fi
+done
+# C++ variants nothing in the configuration accounts for are likely
+# leftovers of an earlier setup; they are linked via <lib>-config
+# -lcpp without ever being rebuilt.
+for so in "$PREFIX"/lib/lib*_cpp.so; do
+  if [ ! -e "$so" ]; then continue; fi
+  name="$(basename "$so")"
+  name="${name#lib}"
+  name="${name%_cpp.so}"
+  case " $CPP_LIBS $CUSTOM_LIB " in
+    *" $name "*) ;;
+    *) echo "⚠️ Unmanaged C++ variant in the prefix (stale leftover?): $so" ;;
+  esac
+done
+
+# The C++ passes recompile the same sources with g++; keep a single
+# entry per file (the gcc one) so clangd sees one canonical command.
+jq 'group_by(.file)
+    | map(if length > 1
+          then ([ .[] | select((((.arguments // []) | join(" "))
+                                + " " + (.command // ""))
+                               | test("g\\+\\+") | not) ] as $kept
+                | if ($kept | length) > 0 then $kept else . end)
+          else . end)
+    | add // []' "$COMPILE_DB" > "$COMPILE_DB.tmp"
+mv "$COMPILE_DB.tmp" "$COMPILE_DB"
 
 # Add header entries for clangd.
 compdb -p "$DBDIR" list > "$COMPILE_DB.tmp"
