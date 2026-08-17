@@ -31,6 +31,11 @@ if [[ $# -gt 0 ]]; then
   esac
 fi
 
+if ! command -v apt-get >/dev/null 2>&1 || ! command -v dpkg-query >/dev/null 2>&1; then
+  echo "❌ This script supports Debian/Ubuntu (apt) only; install the equivalent packages manually on other systems."
+  exit 1
+fi
+
 installed() {
   dpkg-query -W -f='${Status}' "$1" 2>/dev/null | grep -q "install ok installed"
 }
@@ -59,8 +64,10 @@ echo "installing required packages..."
 sudo apt-get install -y "${BUILD_PKGS[@]}" "${LIB_PKGS[@]}" "${TOOL_PKGS[@]}" "${RECOMMENDED_PKGS[@]}"
 
 if ! command -v compdb >/dev/null 2>&1; then
-  echo "⚠️  compdb not found; install it with: pip install --user compdb"
+  echo "❌ compdb is still missing (build_compile_commands.sh needs it); install it with: pip install --user compdb"
+  exit 1
 fi
+echo "✅ All prerequisites are installed."
 
 # Local Variables:
 # jinx-local-words: "env pkg prereq sudo"
