@@ -61,6 +61,11 @@ $ ./sync_upstream.sh             # fast-forward (and push the forks)
 $ ./build_compile_commands.sh    # rebuild and re-freeze versions
 ```
 
+Syncing moves each library's `main` branch; a library left on another
+branch keeps its checkout, and needs a rebase onto main (or
+`git checkout main`) before a rebuild tests the upstream state — the
+script warns about such libraries.
+
 ## Pattern 2: custom configuration
 
 Create `config.local` next to `config.default` and assign only what
