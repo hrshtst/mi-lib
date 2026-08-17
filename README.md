@@ -83,14 +83,20 @@ OWNER="$UPSTREAM_OWNER"         # forkless mode: track the originals
 GIT_PROTOCOL="https"
 ```
 
-Then `./clone.sh && make` is everything: in forkless mode `fork.sh`
-has nothing to do, `clone.sh` adds no upstream remotes, and
-`sync_upstream.sh` fast-forwards from the originals without pushing
-anywhere. Note that assigning `UPSTREAM_LIBS` replaces the default
-list entirely — to manage the whole suite this way, list all ten
-libraries — and the list must stay closed under the dependency graph
-in the Makefile (e.g. dzco needs zeda and zm; roki-gl needs zeda zm
-zeo roki zx11 liw).
+Two commands are everything:
+
+```console
+$ ./clone.sh   # clone the original repositories
+$ make         # build, install, and test
+```
+
+In forkless mode `fork.sh` has nothing to do, `clone.sh` adds no
+upstream remotes, and `sync_upstream.sh` fast-forwards from the
+originals without pushing anywhere. Note that assigning
+`UPSTREAM_LIBS` replaces the default list entirely — to manage the
+whole suite this way, list all ten libraries — and the list must
+stay closed under the dependency graph in the Makefile (e.g. dzco
+needs zeda and zm; roki-gl needs zeda zm zeo roki zx11 liw).
 
 ### Pattern 2-b: your forks and your own custom library
 
@@ -109,19 +115,24 @@ CUSTOM_LIB_DEPS="zeda zm"                 # its deps among UPSTREAM_LIBS
 CUSTOM_TEST_CMD="make -C mylib/test test" # run by CI ("" to skip)
 ```
 
-`./fork.sh` forks the configured upstream libraries into your account
-(through the gh CLI, logging in if necessary), `./clone.sh` clones
-your forks plus `mylib` and adds the original repositories as
-`upstream` remotes to the forks, and `make` builds everything in
-dependency order. The custom library is driven exactly like an
-upstream one — `make`, `make install`, and `make example` run in its
-directory with the configured `PREFIX` — so it must follow the mi-lib
-makefile conventions (as [pedi2](https://github.com/hrshtst/pedi2)
-does). Anything beyond that goes into `mk/mylib.mk`, which may append
-phony targets to `CUSTOM_EXTRA_TARGETS` (joined into `all`) and
-`CUSTOM_EXTRA_CLEAN` (joined into `clean`); see `mk/pedi2.mk`, which
-adds pedi2's gtest suite and application directories this way. If the
-custom library lives under a different account than the forks, set
+```console
+$ ./fork.sh    # fork the upstream libraries into your account
+$ ./clone.sh   # clone the forks and mylib, add upstream remotes
+$ make         # build and install everything in dependency order
+```
+
+`fork.sh` works through the gh CLI, logging in if necessary, and
+`clone.sh` adds the original repositories as `upstream` remotes only
+to the forks — `mylib` keeps its origin alone. The custom library is
+driven exactly like an upstream one — `make`, `make install`, and
+`make example` run in its directory with the configured `PREFIX` —
+so it must follow the mi-lib makefile conventions (as
+[pedi2](https://github.com/hrshtst/pedi2) does). Anything beyond
+that goes into `mk/mylib.mk`, which may append phony targets to
+`CUSTOM_EXTRA_TARGETS` (joined into `all`) and `CUSTOM_EXTRA_CLEAN`
+(joined into `clean`); see `mk/pedi2.mk`, which adds pedi2's gtest
+suite and application directories this way. If the custom library
+lives under a different account than the forks, set
 `CUSTOM_LIB_OWNER`.
 
 Since CI reads only `config.default`, commit your library set and
@@ -146,10 +157,15 @@ VERSIONS_LOCK="versions.local.lock"
 configured library into that file, and `./build_compile_commands.sh`
 re-freezes after each successful rebuild, so the lock always points
 at the last combination that built green. When an experiment goes
-wrong — say `./sync_upstream.sh` pulls an upstream change that breaks
-the custom library — `./thaw_versions.sh` restores the recorded
-state, and a clean rebuild brings the installation back in line. To
-share the pinned versions across machines instead, keep the default
+wrong, the recorded combination is one command away:
+
+```console
+$ ./sync_upstream.sh             # an upstream update breaks mylib...
+$ ./thaw_versions.sh             # ...restore the recorded versions
+$ ./build_compile_commands.sh    # clean rebuild of the last-good state
+```
+
+To share the pinned versions across machines instead, keep the default
 `VERSIONS_LOCK="versions.lock"` and commit the lock in your fork of
 this repository.
 
@@ -249,14 +265,20 @@ clean:
 	for d in $(APP_DIRS); do $(MAKE) -C $$d clean || true; done
 ```
 
-After a one-time `third_party/mi-lib/clone.sh`, `make` builds and
-installs the libraries into `.local` and compiles the applications,
-and `make db` regenerates the compilation database at the project
-root — application sources included — with `.clangd` beside it.
-`third_party/mi-lib/gen_envrc.sh` writes the `.envrc` (run
-`direnv allow` afterwards). Application makefiles compile via the
-installed `<lib>-config` scripts, which carry the prefix
-automatically.
+The whole workflow then runs from the project root:
+
+```console
+$ third_party/mi-lib/clone.sh       # once: clone the libraries
+$ third_party/mi-lib/gen_envrc.sh   # once: write .envrc for direnv
+$ direnv allow
+$ make      # build libraries into .local, then the applications
+$ make db   # regenerate the compilation database
+```
+
+`make db` places the database at the project root — application
+sources included — with `.clangd` beside it. Application makefiles
+compile via the installed `<lib>-config` scripts, which carry the
+prefix automatically.
 
 The three generated files at the project root — `.clangd`, `.envrc`,
 and `compile_commands.json` — are machine-local; it is recommended to
