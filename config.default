@@ -9,8 +9,11 @@
 # config.default first, then config.local (skipped when CI=true).
 # Precedence: environment > config.local > config.default.
 #
-# Values must not contain spaces (they travel through make and
-# sub-make command lines unquoted).
+# List values (UPSTREAM_LIBS, CUSTOM_LIB_DEPS, APP_DIRS) are space
+# separated and their entries must not contain whitespace; scalar
+# values (e.g. PREFIX) must not contain spaces either, as they travel
+# through make and sub-make command lines unquoted. CUSTOM_TEST_CMD is
+# a full shell command line and may contain spaces.
 
 ### Library set ######################################################
 

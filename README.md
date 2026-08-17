@@ -17,8 +17,9 @@ but are ignored by git.
 
 All scripts read the same layered configuration through
 `load_config.sh` (not a user command). `fork.sh`, `sync_upstream.sh`,
-and the freeze/thaw pair accept `--dry-run`; `clone.sh` is idempotent
-and skips existing clones:
+and the freeze/thaw pair accept `--dry-run` (a dry run may still
+fetch refs or check authentication, but never modifies worktrees or
+remotes); `clone.sh` is idempotent and skips existing clones:
 
 | script | what it does | when to run |
 |---|---|---|
@@ -186,8 +187,11 @@ this repository.
   variables, empty derives it from this repository's origin URL.
 - `UPSTREAM_OWNER` names the organization hosting the original
   libraries and rarely needs changing.
-- Values must not contain spaces — they travel through make and
-  sub-make command lines unquoted.
+- List variables (`UPSTREAM_LIBS`, `CUSTOM_LIB_DEPS`, `APP_DIRS`) are
+  space-separated and their entries must not contain whitespace;
+  scalar values such as `PREFIX` must not contain spaces either (they
+  travel through make command lines unquoted). `CUSTOM_TEST_CMD` is a
+  full shell command and may contain spaces.
 - The installation-related variables — `PREFIX`, `APP_DIRS`,
   `COMPILE_DB`, and `ENVRC_DIR` (where `gen_envrc.sh` writes `.envrc`;
   empty = the directory containing `PREFIX`) — are the subject of
@@ -297,7 +301,9 @@ Rules of the road: always build through this repository's Makefile
 makefiles; a build started inside a library directory would fall back
 to that library's own config), and a `PREFIX` change requires
 `make clean` first — a stamp file enforces this, since the generated
-`<lib>-config` tools bake the prefix in.
+`<lib>-config` tools bake the prefix in. The stamp only tracks builds
+made through this Makefile; artifacts installed into the prefix
+before the metapackage managed it are not detected.
 
 ## Version pinning and the compilation database
 
