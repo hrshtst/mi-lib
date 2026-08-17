@@ -65,6 +65,13 @@ if [ -z "${GIT_PROTOCOL:-}" ]; then
     *) GIT_PROTOCOL="https" ;;
   esac
 fi
+case "$GIT_PROTOCOL" in
+  ssh | https) ;;
+  *)
+    echo "❌ GIT_PROTOCOL must be \"ssh\" or \"https\" (or empty to derive): $GIT_PROTOCOL" >&2
+    exit 1
+    ;;
+esac
 if [ -z "${COMPILE_DB:-}" ]; then
   COMPILE_DB="$MILIB_ROOT/compile_commands.json"
 fi

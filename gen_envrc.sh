@@ -36,6 +36,10 @@ if ! command -v direnv >/dev/null 2>&1; then
 fi
 
 DIR="${ENVRC_DIR:-$(dirname "$PREFIX")}"
+if [ ! -d "$DIR" ]; then
+  echo "❌ Target directory does not exist: $DIR (check ENVRC_DIR/PREFIX)"
+  exit 1
+fi
 TARGET="$DIR/.envrc"
 if [ -e "$TARGET" ] && ! $FORCE; then
   echo "⚠️ $TARGET already exists; rerun with --force to overwrite."

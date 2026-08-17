@@ -20,9 +20,14 @@ add_upstream() {
     fi
     case " $UPSTREAM_LIBS " in
         *" $1 "*)
-            if ! git -C "$1" remote get-url upstream >/dev/null 2>&1; then
+            local url current
+            url="$(milib_repo_url "$UPSTREAM_OWNER" "$1")"
+            if ! current="$(git -C "$1" remote get-url upstream 2>/dev/null)"; then
                 echo "   Adding upstream remote ${UPSTREAM_OWNER}/$1"
-                git -C "$1" remote add upstream "$(milib_repo_url "$UPSTREAM_OWNER" "$1")"
+                git -C "$1" remote add upstream "$url"
+            elif [ "$current" != "$url" ]; then
+                echo "   Correcting upstream remote URL: $current -> $url"
+                git -C "$1" remote set-url upstream "$url"
             fi
             ;;
     esac
