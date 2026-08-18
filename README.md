@@ -323,7 +323,9 @@ the lock file (`--dry-run` diffs against it). A lock is reproducible
 from its commit IDs alone: freezing refuses to run while any library
 has staged or unstaged changes to tracked files — untracked files are
 ignored and never captured. `./thaw_versions.sh` checks the recorded
-commits out again, skipping repositories with local changes.
+commits out again for the configured libraries — extra lock entries
+are left untouched, so a subset configuration can thaw from a fuller
+lock — skipping repositories with local changes.
 `./build_compile_commands.sh` verifies the libraries are clean, then
 cleans, rebuilds everything under
 [bear](https://github.com/rizsotto/Bear),

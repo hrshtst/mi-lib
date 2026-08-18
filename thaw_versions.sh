@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 #
 # Thaw the library versions recorded in the version lock file: check
-# out each library at its recorded commit. Repositories with local
-# changes to tracked files are skipped.
+# out each configured library at its recorded commit. Lock entries
+# for libraries outside the configuration are left untouched (so a
+# consumer building a subset can thaw from a fuller lock), and
+# repositories with local changes to tracked files are skipped.
 #
 # Usage:
 #   ./thaw_versions.sh            # Check out the recorded versions
@@ -38,9 +40,30 @@ fi
 THAWED=""
 SKIPPED=""
 FAILED=""
-while read -r lib sha branch flag; do
-  [ -z "$lib" ] && continue
+IGNORED=""
+
+# Only the configured libraries are thawed: lock entries for
+# libraries the configuration leaves out (e.g. a consumer building a
+# subset) are reported and left untouched, while a configured library
+# without a lock entry is an error — the lock predates the
+# configuration.
+while read -r lib _; do
+  if [ -z "$lib" ]; then continue; fi
+  case " $LIBS " in
+    *" $lib "*) ;;
+    *) IGNORED="$IGNORED $lib" ;;
+  esac
+done < "$LOCK"
+
+for lib in $LIBS; do
   echo "==> $lib"
+  entry="$(grep -m 1 -- "^$lib " "$LOCK" || true)"
+  if [ -z "$entry" ]; then
+    echo "❌  No entry in $LOCK"
+    FAILED="$FAILED $lib"
+    continue
+  fi
+  read -r _ sha branch flag <<<"$entry"
   if [ ! -d "$lib" ]; then
     echo "❌  Directory not found (run clone.sh)"
     FAILED="$FAILED $lib"
@@ -81,8 +104,12 @@ while read -r lib sha branch flag; do
   fi
   echo "✅  Checked out ${sha:0:7} ($branch)"
   THAWED="$THAWED $lib"
-done < "$LOCK"
+done
 
+if [ -n "$IGNORED" ]; then
+  echo
+  echo "ℹ️ Locked but not configured, left untouched:$IGNORED"
+fi
 if [ -n "$THAWED" ]; then
   echo
   echo "🎉 Thawed:$THAWED"
