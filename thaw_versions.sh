@@ -96,6 +96,14 @@ for lib in $LIBS; do
   if [ "$branch" != "HEAD" ] && \
      [ "$(git -C "$lib" rev-parse --quiet --verify "refs/heads/$branch" 2>/dev/null)" = "$sha" ]; then
     git -C "$lib" checkout -q "$branch"
+  elif [ "$branch" != "HEAD" ] && \
+       ! git -C "$lib" rev-parse --quiet --verify "refs/heads/$branch" >/dev/null 2>&1 && \
+       [ "$(git -C "$lib" rev-parse --quiet --verify "refs/remotes/origin/$branch" 2>/dev/null)" = "$sha" ]; then
+    # The recorded branch is not local but origin still has it at the
+    # recorded commit: create it tracking origin instead of detaching,
+    # so a later freeze records the branch name again. A local branch
+    # that has moved elsewhere is never reset — that case detaches.
+    git -C "$lib" checkout -q --track -b "$branch" "origin/$branch"
   else
     git -C "$lib" checkout -q --detach "$sha"
     if [ "$branch" != "HEAD" ]; then
