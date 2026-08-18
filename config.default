@@ -57,6 +57,12 @@ CUSTOM_LIB_OWNER=""
 # repository's origin URL.
 GIT_PROTOCOL=""
 
+# Fork branches sync_upstream.sh additionally fast-forwards from
+# origin alongside main (e.g. branches carrying patches pending as
+# upstream pull requests). Libraries without a given branch are
+# skipped ("" syncs main only).
+SYNC_BRANCHES=""
+
 ### Installation #####################################################
 
 # Install prefix for headers, libraries, and tools.

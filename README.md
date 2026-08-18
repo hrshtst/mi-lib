@@ -26,7 +26,7 @@ remotes); `clone.sh` is idempotent and skips existing clones:
 | `install_prereq.sh` | installs the required system packages (`--check` to verify only) | once per machine |
 | `fork.sh` | forks the upstream libraries into your account | once per account (no-op in forkless mode) |
 | `clone.sh` | clones the configured libraries, adds `upstream` remotes | once per machine, or after adding a library |
-| `sync_upstream.sh` | fast-forwards each library's `main` to upstream (and pushes the forks) | when `upstream-check` reports updates |
+| `sync_upstream.sh` | fast-forwards each library's `main` to upstream (and pushes the forks), plus the `SYNC_BRANCHES` fork branches from origin | when `upstream-check` reports updates |
 | `build_compile_commands.sh` | clean rebuild, regenerates the compilation database and `.clangd`, freezes versions | after any library changes |
 | `freeze_versions.sh` | records each library's commit into the lock file (refuses dirty trees) | after a combination proves good (automatic at the end of a successful `build_compile_commands.sh`) |
 | `thaw_versions.sh` | checks the recorded commits out again | to roll back or reproduce the locked state |
