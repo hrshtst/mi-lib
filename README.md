@@ -325,7 +325,11 @@ has staged or unstaged changes to tracked files — untracked files are
 ignored and never captured. `./thaw_versions.sh` checks the recorded
 commits out again for the configured libraries — extra lock entries
 are left untouched, so a subset configuration can thaw from a fuller
-lock — skipping repositories with local changes.
+lock — skipping repositories with local changes. A recorded branch
+that is missing locally is re-created from origin when origin still
+points at the recorded commit, so a later freeze keeps the branch
+name; a local branch that has moved is never reset (the checkout
+detaches instead).
 `./build_compile_commands.sh` verifies the libraries are clean, then
 cleans, rebuilds everything under
 [bear](https://github.com/rizsotto/Bear),
