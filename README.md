@@ -325,11 +325,15 @@ has staged or unstaged changes to tracked files — untracked files are
 ignored and never captured. `./thaw_versions.sh` checks the recorded
 commits out again for the configured libraries — extra lock entries
 are left untouched, so a subset configuration can thaw from a fuller
-lock — skipping repositories with local changes. A recorded branch
-that is missing locally is re-created from origin when origin still
-points at the recorded commit, so a later freeze keeps the branch
-name; a local branch that has moved is never reset (the checkout
-detaches instead).
+lock — skipping repositories with local changes. Each library goes
+back onto its recorded branch wherever that loses no commit, so a
+later freeze keeps the branch name: a local branch that is behind the
+recorded commit is fast-forwarded to it, and a branch missing locally
+is re-created from origin when origin still points at the recorded
+commit. A local branch that has moved ahead or diverged is never
+reset (the checkout detaches instead, with a warning). A library
+already detached at its recorded commit, by an earlier thaw for
+instance, is reattached to its branch the same way.
 `./build_compile_commands.sh` verifies the libraries are clean, then
 cleans, rebuilds everything under
 [bear](https://github.com/rizsotto/Bear),
