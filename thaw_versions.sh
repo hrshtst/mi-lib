@@ -4,7 +4,9 @@
 # out each configured library at its recorded commit. Lock entries
 # for libraries outside the configuration are left untouched (so a
 # consumer building a subset can thaw from a fuller lock), and
-# repositories with local changes to tracked files are skipped.
+# repositories with local changes to tracked files are skipped. Each
+# library is put back on its recorded branch where that loses no
+# commit, and is left detached at the recorded commit otherwise.
 #
 # Usage:
 #   ./thaw_versions.sh            # Check out the recorded versions
@@ -42,6 +44,53 @@ SKIPPED=""
 FAILED=""
 IGNORED=""
 
+# How a library ($1) gets onto its recorded branch ($3) at the
+# recorded commit ($2) without losing a commit: "checkout" when the
+# local branch points there, "fast-forward" when the local branch is
+# behind it (an ancestor of the commit), "track" when the branch is
+# not local but origin has it there, and "detach" otherwise. A local
+# branch that has moved ahead or diverged is never reset. Keeping the
+# branch lets a later freeze record its name, where a detached
+# checkout would record HEAD.
+branch_action() {
+  local tip
+  if [ "$3" = "HEAD" ]; then
+    echo detach
+  elif tip="$(git -C "$1" rev-parse --quiet --verify "refs/heads/$3" 2>/dev/null)"; then
+    if [ "$tip" = "$2" ]; then
+      echo checkout
+    elif git -C "$1" merge-base --is-ancestor "$tip" "$2" 2>/dev/null; then
+      echo fast-forward
+    else
+      echo detach
+    fi
+  elif [ "$(git -C "$1" rev-parse --quiet --verify "refs/remotes/origin/$3" 2>/dev/null)" = "$2" ]; then
+    echo track
+  else
+    echo detach
+  fi
+}
+
+# Check out the recorded commit ($2) of a library ($1) as
+# branch_action decided ($4) for the recorded branch ($3).
+apply_action() {
+  case "$4" in
+    checkout)
+      git -C "$1" checkout -q "$3"
+      ;;
+    fast-forward)
+      echo "⏩  Fast-forwarding '$3' from $(git -C "$1" rev-parse --short "refs/heads/$3")"
+      git -C "$1" checkout -q -B "$3" "$2"
+      ;;
+    track)
+      git -C "$1" checkout -q --track -b "$3" "origin/$3"
+      ;;
+    detach)
+      git -C "$1" checkout -q --detach "$2"
+      ;;
+  esac
+}
+
 # Only the configured libraries are thawed: lock entries for
 # libraries the configuration leaves out (e.g. a consumer building a
 # subset) are reported and left untouched, while a configured library
@@ -71,6 +120,22 @@ for lib in $LIBS; do
   fi
   if [ "$(git -C "$lib" rev-parse HEAD)" = "$sha" ]; then
     echo "✅  Already at recorded version"
+    # A checkout left detached at the recorded commit, by an earlier
+    # thaw for instance, goes back onto its branch where that loses no
+    # commit. The commit stays the same, so local changes are kept.
+    if [ "$(git -C "$lib" rev-parse --abbrev-ref HEAD)" = "HEAD" ]; then
+      action="$(branch_action "$lib" "$sha" "$branch")"
+      if [ "$action" = "detach" ]; then
+        if [ "$branch" != "HEAD" ]; then
+          echo "⚠️  Branch '$branch' no longer points at the recorded commit; left detached"
+        fi
+      elif $DRY_RUN; then
+        echo "💡 (dry-run) Would reattach '$branch' ($action)"
+      else
+        apply_action "$lib" "$sha" "$branch" "$action"
+        echo "🔗  Reattached '$branch'"
+      fi
+    fi
     continue
   fi
   if [ -n "$(git -C "$lib" status --porcelain --untracked-files=no)" ]; then
@@ -89,26 +154,14 @@ for lib in $LIBS; do
   if [ "$flag" = "dirty" ]; then
     echo "⚠️  Recorded state had uncommitted changes that cannot be restored"
   fi
+  action="$(branch_action "$lib" "$sha" "$branch")"
   if $DRY_RUN; then
-    echo "💡 (dry-run) Would check out ${sha:0:7} ($branch), currently at $(git -C "$lib" rev-parse --short HEAD)"
+    echo "💡 (dry-run) Would check out ${sha:0:7} ($branch, $action), currently at $(git -C "$lib" rev-parse --short HEAD)"
     continue
   fi
-  if [ "$branch" != "HEAD" ] && \
-     [ "$(git -C "$lib" rev-parse --quiet --verify "refs/heads/$branch" 2>/dev/null)" = "$sha" ]; then
-    git -C "$lib" checkout -q "$branch"
-  elif [ "$branch" != "HEAD" ] && \
-       ! git -C "$lib" rev-parse --quiet --verify "refs/heads/$branch" >/dev/null 2>&1 && \
-       [ "$(git -C "$lib" rev-parse --quiet --verify "refs/remotes/origin/$branch" 2>/dev/null)" = "$sha" ]; then
-    # The recorded branch is not local but origin still has it at the
-    # recorded commit: create it tracking origin instead of detaching,
-    # so a later freeze records the branch name again. A local branch
-    # that has moved elsewhere is never reset — that case detaches.
-    git -C "$lib" checkout -q --track -b "$branch" "origin/$branch"
-  else
-    git -C "$lib" checkout -q --detach "$sha"
-    if [ "$branch" != "HEAD" ]; then
-      echo "⚠️  Branch '$branch' no longer points at the recorded commit; detached"
-    fi
+  apply_action "$lib" "$sha" "$branch" "$action"
+  if [ "$action" = "detach" ] && [ "$branch" != "HEAD" ]; then
+    echo "⚠️  Branch '$branch' no longer points at the recorded commit; detached"
   fi
   echo "✅  Checked out ${sha:0:7} ($branch)"
   THAWED="$THAWED $lib"
