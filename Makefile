@@ -104,7 +104,8 @@ ifndef SKIP_CHECKS
 	$(LIBMK) liw example
 endif
 
-zx11: zeda
+# zx11's libinfo declares zeda only, but zximage_freetype.c includes zm/zm.h
+zx11: zeda zm
 	cd zx11 && sed -e "s/^CONFIG_USE_MAGICKWAND=y$$/CONFIG_USE_MAGICKWAND=n/" config.org > config
 	$(LIBMK) zx11
 	$(LIBMK) zx11 install
