@@ -143,7 +143,10 @@ endif
 # lib<name>_cpp.so after its C build (the <lib>-config tools advertise
 # them via -lcpp). The generated makefiles compile objects in place,
 # shared between compilers, so both passes must start from clean
-# objects — these libraries always rebuild from scratch.
+# objects — these libraries always rebuild from scratch. The pass
+# installs only lib<name>_cpp.so: a full install would rewrite the
+# headers and libraries of its library while the dependents, which
+# wait only for the C build, compile against them under make -j.
 CPP_LIBS := $(shell ./load_config.sh --get CPP_LIBS)
 ifndef SKIP_CPP
 CPP_TARGETS := $(addsuffix -cpp,$(CPP_LIBS))
@@ -160,7 +163,7 @@ all: $(CPP_TARGETS)
 $(CPP_TARGETS): %-cpp: %
 	$(LIBMK) $*/src clean
 	$(LIBMK) $*/src CC=g++
-	$(LIBMK) $* install
+	install -m 755 $*/lib/lib$*_cpp.so $(PREFIX)/lib/
 	$(LIBMK) $*/src clean
 endif
 
